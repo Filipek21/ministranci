@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Logowanie</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+      .login-container { max-width:500px; margin:40px auto; background:#2a2a2a; padding:30px; border-radius:8px; border:1px solid #444; }
+      .login-container h1 { color:#2196F3; text-align:center; }
+      .login-container form input, .login-container form button { width:100%; padding:12px; margin:10px 0; font-size:14px; }
+      .contact-btn { width:100%; padding:12px; margin-top:20px; background:#FFC107; color:#000; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:14px; }
+      .contact-btn:hover { background:#FFB300; }
+      
+      .emergency-form-container { display:none; background:#1a1a1a; padding:25px; border-radius:8px; margin-top:20px; border:2px solid #FFC107; max-height:85vh; overflow-y:auto; }
+      .emergency-form-container h3 { color:#FFC107; margin-top:0; border-bottom:2px solid #FFC107; padding-bottom:10px; }
+      .form-section { background:#2a2a2a; padding:15px; border-radius:6px; margin:15px 0; border-left:4px solid #2196F3; }
+      .form-section h4 { color:#2196F3; margin-top:0; }
+      .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+      .form-row.full { grid-template-columns:1fr; }
+      
+      .emergency-form-container label { display:block; margin-top:10px; color:#fff; font-weight:600; font-size:13px; }
+      .emergency-form-container input, .emergency-form-container textarea, .emergency-form-container select { 
+        width:100%; padding:10px; margin:5px 0; background:#222; color:#fff; border:1px solid #555; border-radius:6px; font-size:13px; 
+        box-sizing:border-box;
+      }
+      .emergency-form-container input:focus, .emergency-form-container textarea:focus, .emergency-form-container select:focus {
+        border-color:#2196F3; outline:none; box-shadow:0 0 5px rgba(33,150,243,0.3);
+      }
+      .emergency-form-container button { width:100%; padding:12px; background:#4CAF50; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; margin-top:15px; }
+      .emergency-form-container button:hover { background:#45a049; }
+      .close-form-btn { float:right; background:#f44336; padding:6px 12px; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:12px; }
+      
+      .alert { background:#d32f2f; color:#fff; padding:15px; border-radius:6px; margin:15px 0; }
+      .success { background:#4CAF50; }
+      .checkbox-group { margin:10px 0; }
+      .checkbox-group label { display:inline-block; margin-right:15px; cursor:pointer; }
+      .checkbox-group input { margin-right:5px; }
+    </style>
+</head>
+<body>
+<div class="login-container">
+  <h1>🔒 Logowanie</h1>
+  <form method="POST">
+      <input type="text" name="username" placeholder="Login" required autocomplete="username">
+      <input type="password" name="password" placeholder="Hasło" required autocomplete="current-password">
+      <button type="submit">Zaloguj</button>
+  </form>
+  {% if error %}
+  <p class="alert">{{ error }}</p>
+  {% endif %}
+  
+  <button class="contact-btn" onclick="toggleEmergency()">⚠️ Nie mogę się zalogować - Skontaktuj się z adminem</button>
+  
+  <div class="emergency-form-container" id="emergencyForm">
+    <button class="close-form-btn" onclick="toggleEmergency()">✕ Zamknij</button>
+    <h3>📞 Formularz awaryjnego kontaktu</h3>
+    <form onsubmit="sendEmergency(event)">
+      
+      <!-- SEKCJA 1: DANE OSOBOWE -->
+      <div class="form-section">
+        <h4>👤 Dane osobowe</h4>
+        <div class="form-row full">
+          <div>
+            <label>Imię/Nick/Login (wymagane):</label>
+            <input type="text" id="emergencyName" placeholder="Twoja nazwa użytkownika" required>
+          </div>
+        </div>
+      </div>
+      
+      <!-- SEKCJA 2: KONTAKT -->
+      <div class="form-section">
+        <h4>📧 Kontakt (min. jeden wymagany)</h4>
+        <div class="form-row">
+          <div>
+            <label>📧 Email:</label>
+            <input type="email" id="emergencyEmail" placeholder="email@example.com">
+          </div>
+          <div>
+            <label>💬 Link do profilu (Messenger/Facebook):</label>
+            <input type="url" id="emergencyMessenger" placeholder="https://m.me/TWÓJ_NICK lub https://facebook.com/TWÓJ_NICK" pattern="https?://.+" title="Musi być pełny link (https://...)">
+            <small style="color:#aaa; display:block; margin-top:5px;">⚠️ Wklej link do swojego profilu Messengera lub Facebooka</small>
+          </div>
+        </div>
+      </div>
+      
+      <!-- SEKCJA 3: TYP PROBLEMU -->
+      <div class="form-section">
+        <h4>🔍 Problem (wymagane)</h4>
+        <label>Typ problemu:</label>
+        <select id="emergencyProblem" required>
+          <option value="">-- Wybierz typ problemu --</option>
+          <option value="Zapomniałem hasła">Zapomniałem hasła</option>
+          <option value="Konto zablokowane">Konto zablokowane/Nie mogę się zalogować</option>
+          <option value="Błąd systemowy">Błąd systemowy aplikacji</option>
+          <option value="Brak dostępu">Brak dostępu do funkcji</option>
+          <option value="Brak konta">Brak mi konta w systemie</option>
+          <option value="Dane osobowe">Problem z danymi osobowymi</option>
+          <option value="Inne">Inne</option>
+        </select>
+        
+        <label style="margin-top:15px;">Priorytet problemu:</label>
+        <select id="emergencyPriority" required>
+          <option value="">-- Wybierz priorytet --</option>
+          <option value="Natychmiast">🚨 Natychmiast (nie mogę pracować)</option>
+          <option value="Pilnie">⚠️ Pilnie (w ciągu kilku godzin)</option>
+          <option value="Szybko">🔔 Szybko (dzisiaj)</option>
+          <option value="Normalnie">📋 Normalnie (może być jutro)</option>
+        </select>
+      </div>
+      
+      <!-- SEKCJA 4: OPIS PROBLEMU -->
+      <div class="form-section">
+        <h4>📝 Szczegóły problemu</h4>
+        <label>Opisz dokładnie co się dzieje (wymagane):</label>
+        <textarea id="emergencyDesc" placeholder="Opisz problem jak najdokładniej. Ile informacji podasz, tym szybciej zostanie rozwiązany..." style="min-height:100px; resize:vertical;" required></textarea>
+        
+        <label style="margin-top:15px;">Kiedy ostatnio mogłeś się zalogować:</label>
+        <input type="date" id="emergencyDate">
+        
+        <label style="margin-top:15px;">Jakie czynności wykonałeś przed problemem:</label>
+        <textarea id="emergencyActions" placeholder="np. Próbowałem zmienić hasło, Kliknąłem na anuluj, itp." style="min-height:80px; resize:vertical;"></textarea>
+      </div>
+      
+      <!-- SEKCJA 5: DODATKOWE INFORMACJE -->
+      <div class="form-section">
+        <h4>🖥️ Informacje techniczne</h4>
+        <label>Przeglądarka/Urządzenie:</label>
+        <input type="text" id="emergencyDevice" placeholder="np. Chrome na Windows, Safari na iPhone">
+        
+        <div class="checkbox-group" style="margin-top:15px;">
+          <label><input type="checkbox" id="emergencyClearCache"> Wyczyściłem cache przeglądarki</label><br/>
+          <label><input type="checkbox" id="emergencyReload"> Przeładowałem stronę</label><br/>
+          <label><input type="checkbox" id="emergencyIncognito"> Próbowałem w trybie incognito</label><br/>
+          <label><input type="checkbox" id="emergencyOtherDevice"> Próbowałem na innym urządzeniu</label>
+        </div>
+      </div>
+      
+      <!-- PRZYCISK WYSYŁANIA -->
+      <button type="submit">✅ Wyślij prośbę o pomoc (Natychmiast do admina)</button>
+      <div id="emergencyStatus" style="margin-top:15px; color:#4CAF50; text-align:center; display:none; font-weight:600;"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleEmergency() {
+  const form = document.getElementById('emergencyForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function sendEmergency(e) {
+  e.preventDefault();
+  const email = document.getElementById('emergencyEmail').value;
+  const messenger = document.getElementById('emergencyMessenger').value;
+  
+  if(!email && !messenger) {
+    alert('❌ Musisz podać email LUB kontakt na Messengers!');
+    return;
+  }
+  
+  const statusDiv = document.getElementById('emergencyStatus');
+  statusDiv.style.display = 'block';
+  statusDiv.textContent = '⏳ Wysyłanie...';
+  
+  const fd = new FormData();
+  fd.append('name', document.getElementById('emergencyName').value);
+  fd.append('email', email);
+  fd.append('messenger', messenger);
+  fd.append('problem', document.getElementById('emergencyProblem').value);
+  fd.append('priority', document.getElementById('emergencyPriority').value);
+  fd.append('description', document.getElementById('emergencyDesc').value);
+  fd.append('date', document.getElementById('emergencyDate').value);
+  fd.append('actions', document.getElementById('emergencyActions').value);
+  fd.append('device', document.getElementById('emergencyDevice').value);
+  fd.append('cache', document.getElementById('emergencyClearCache').checked);
+  fd.append('reload', document.getElementById('emergencyReload').checked);
+  fd.append('incognito', document.getElementById('emergencyIncognito').checked);
+  fd.append('other_device', document.getElementById('emergencyOtherDevice').checked);
+  
+  try {
+    const res = await fetch('/emergency_contact', {method: 'POST', body: fd});
+    const data = await res.json();
+    if(data.success) {
+      statusDiv.textContent = '✅ Wysłano! Admin skontaktuje się z Tobą NATYCHMIAST!';
+      statusDiv.style.color = '#4CAF50';
+      setTimeout(() => {
+        document.querySelector('form').reset();
+        document.getElementById('emergencyForm').style.display = 'none';
+        statusDiv.style.display = 'none';
+      }, 2000);
+    } else {
+      statusDiv.textContent = '❌ Błąd: ' + (data.error || 'Spróbuj ponownie');
+      statusDiv.style.color = '#f44336';
+    }
+  } catch(err) {
+    statusDiv.textContent = '❌ Błąd połączenia: ' + err.message;
+    statusDiv.style.color = '#f44336';
+  }
+}
+</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

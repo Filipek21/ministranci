@@ -1,0 +1,104 @@
+<section id="wiadomosci">
+  <h2>Rozmowy</h2>
+  <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+    <div class="conversations-list">
+      <h3>Moje rozmowy</h3>
+      <div id="convList"></div>
+    </div>
+    <div class="chat-window">
+      <div id="noConvSelected" style="text-align:center; padding:20px; color:#ffffff; font-size:18px; font-weight:700; text-shadow: 0 1px 3px rgba(0,0,0,0.5); background:#2a2a2a; border-radius:8px; border:1px solid #444;">
+        Wybierz rozmowę aby wyświetlić czat
+      </div>
+      <div id="chatBox" style="display:none;">
+        <div style="display:flex; justify-content:space-between;">
+          <h3 id="chatTitle"></h3>
+          <button id="closeBtn" onclick="closeConv()" class="btn btn-danger" style="padding:5px 10px;">Zamknij rozmowę</button>
+        </div>
+        <div id="messages" style="height:300px; overflow-y:auto; border:1px solid #ddd; padding:10px; margin:10px 0;"></div>
+        <form onsubmit="sendMsg(event)" style="display:flex; gap:10px;">
+          <input type="text" id="msgInput" placeholder="Wpisz wiadomość..." style="flex:1;" />
+          <button type="submit" class="btn">Wyślij</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+let currentConv = null;
+let role = "{{ session.get('role') }}";
+
+async function loadConversations() {
+  const res = await fetch('/get_conversations');
+  const convs = await res.json();
+  const list = document.getElementById('convList');
+  list.innerHTML = convs.map(c => `
+    <div class="conv-item" onclick="openConv(${c.id}, '${c.ministrant}', '${c.odbiorca}', '${c.status}')" style="padding:10px; cursor:pointer; border:1px solid #ddd; margin:5px 0; border-radius:5px; background:${c.status=='closed'?'#f0f0f0':'#fff'};">
+      <strong>${c.ministrant}</strong> → ${c.odbiorca}<br/>
+      <small>${c.status=='closed'?'ZAMKNIĘTA':'Otwarta'}</small>
+    </div>
+  `).join('') || '<p>Brak rozmów</p>';
+}
+
+async function openConv(id, ministry, odbiorcy, status) {
+  currentConv = {id, ministry, odbiorcy, status};
+  document.getElementById('noConvSelected').style.display = 'none';
+  document.getElementById('chatBox').style.display = 'block';
+  document.getElementById('chatTitle').innerHTML = ministry + ' → ' + odbiorcy + (status=='closed'?' (ZAMKNIĘTA)':'');
+  document.getElementById('closeBtn').style.display = (role=='admin' || (role=='ksiez' && odbiorcy=='{{ session.user }}'))?'block':'none';
+  await loadMessages();
+}
+
+async function loadMessages() {
+  if(!currentConv) return;
+  const res = await fetch('/get_conversation/' + currentConv.id);
+  const msgs = await res.json();
+  const box = document.getElementById('messages');
+  box.innerHTML = msgs.map(m => `
+    <div style="margin:5px 0; padding:5px; background:#f5f5f5; border-radius:3px;">
+      <strong>${m.nadawca}:</strong> ${m.tresc}<br/>
+      <small>${m.data}</small>
+      ${(role=='admin' || role=='ksiez')?'<button onclick="deleteMsg('+m.id+')" style="margin-left:10px; padding:2px 5px; font-size:11px;">Usuń</button>':''}
+    </div>
+  `).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMsg(e) {
+  e.preventDefault();
+  const text = document.getElementById('msgInput').value;
+  if(!text) return;
+  const fd = new FormData();
+  fd.append('conversation_id', currentConv.id);
+  fd.append('tresc', text);
+  const res = await fetch('/send_message', {method:'POST', body:fd});
+  const data = await res.json();
+  if(data.success) {
+    document.getElementById('msgInput').value = '';
+    await loadMessages();
+  }
+}
+
+async function deleteMsg(id) {
+  if(confirm('Usunąć wiadomość?')) {
+    const res = await fetch('/delete_message/'+id, {method:'POST'});
+    const data = await res.json();
+    if(data.success) await loadMessages();
+  }
+}
+
+async function closeConv() {
+  if(confirm('Zamknąć rozmowę?')) {
+    const res = await fetch('/close_conversation/'+currentConv.id, {method:'POST'});
+    const data = await res.json();
+    if(data.success) {
+      currentConv.status = 'closed';
+      await loadConversations();
+      await loadMessages();
+    }
+  }
+}
+
+loadConversations();
+setInterval(loadConversations, 10000);
+</script>

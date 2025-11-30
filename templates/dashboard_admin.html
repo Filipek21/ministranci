@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Panel Admina</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+  /* button background helpers to avoid inline template expressions inside style attributes */
+  .bg-off { background: #f44336 !important; color: #fff; }
+  .bg-on  { background: #4CAF50 !important; color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Panel Admina</h1>
+  <div class="user-info">
+    <span>Zalogowany jako: {{ session.user }}</span>
+    <a href="/logout" class="logout-btn">Wyloguj</a>
+  </div>
+</header>
+
+<nav>
+  <a href="#zarzadzanie">Zarządzanie kontami</a>
+  <a href="#obecnosci">Obecności</a>
+  <a href="#akceptacja">Akceptacja punktów</a>
+  <a href="#historia">Historia punktów</a>
+  <a href="#statystyki">Statystyki</a>
+  <a href="#konfiguracja">Konfiguracja</a>
+  <a href="#sezony">Sezony punktów</a>
+  <a href="#typymszy">Typy mszy</a>
+  <a href="#harmonogram">Harmonogram</a>
+  <a href="#ogloszenia">Ogłoszenia</a>
+  <a href="#wiadomosci">Wiadomości</a>
+  <a href="#moderacja">Moderacja</a>
+  <a href="#raporty">Raporty</a>
+  <a href="#system">System</a>
+</nav>
+
+<section id="zarzadzanie">
+  <h2>Zarządzanie kontami</h2>
+  
+  <div style="background:#2a2a2a; padding:15px; border-radius:8px; margin-bottom:20px;">
+    <h3 style="margin-top:0; color:#2196F3;">🔍 Szukaj i filtruj</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+      <input type="text" id="userSearchInput" placeholder="🔍 Szukaj po login..." onkeyup="searchUsers(this.value)" style="padding:10px; background:#1a1a1a; color:#fff; border:1px solid #555; border-radius:4px;">
+      <select id="roleFilter" onchange="filterByRole(this.value)" style="padding:10px; background:#1a1a1a; color:#fff; border:1px solid #555; border-radius:4px;">
+        <option value="">Wszystkie role</option>
+        <option value="ministrant">Ministranci</option>
+        <option value="ksiez">Księża</option>
+        <option value="admin">Admini</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="filterUsers('all')" style="background:#2196F3; padding:10px 15px; font-size:14px !important;">Wszyscy</button>
+      <button class="btn" onclick="filterUsers('active')" style="background:#4CAF50; padding:10px 15px; font-size:14px !important;">Aktywni</button>
+      <button class="btn" onclick="filterUsers('inactive')" style="background:#f44336; padding:10px 15px; font-size:14px !important;">Nieaktywni</button>
+      <button class="btn" onclick="exportUsers()" style="background:#FF9800; padding:10px 15px; font-size:14px !important;">📥 Eksportuj CSV</button>
+      <button class="btn" onclick="toggleSelectAll()" style="background:#9C27B0; padding:10px 15px; font-size:14px !important;" id="selectAllBtn">☑️ Zaznacz wszystkie</button>
+    </div>
+  </div>
+  
+  <h3>Problemy z logowaniem (Kontakty awaryjne):</h3>
+  <div id="emergencyList" style="margin:15px 0;"></div>
+  
+  <div class="stats-cards">
+    <div class="stat-card">
+      <h3>Użytkownicy</h3>
+      <p class="stat-number">{{ total_users }}</p>
+    </div>
+    <div class="stat-card">
+      <h3>Wpisy obecności</h3>
+      <p class="stat-number">{{ total_records }}</p>
+    </div>
+    <div class="stat-card">
+      <h3>Ogłoszenia</h3>
+      <p class="stat-number">{{ total_announcements }}</p>
+    </div>
+    <div class="stat-card">
+      <h3>Punkty (miesiąc)</h3>
+      <p class="stat-number">{{ monthly_points }}</p>
+    </div>
+    <div class="stat-card">
+      <h3>Do akceptacji</h3>
+      <p class="stat-number">{{ pending_approvals }}</p>
+    </div>
+  </div>
+
+  <table class="users-table">
+    <tr>
+      <th><input type="checkbox" id="selectAllCheck" onchange="toggleAllCheckboxes()"></th>
+      <th>👤 Login</th>
+      <th>🎯 Rola</th>
+      <th>✓ Status</th>
+      <th>📅 Dołączył</th>
+      <th>⚙️ Opcje</th>
+    </tr>
+    {% for u in users %}
+    <tr class="user-row" data-username="{{ u[0] }}" data-role="{{ u[1] }}" data-active="{{ u[3] }}">
+      <td><input type="checkbox" class="user-checkbox" value="{{ u[0] }}"></td>
+      <td><strong>{{ u[0] }}</strong></td>
+      <td>
+        <form method="POST" action="{{ url_for('change_role', user=u[0]) }}" class="inline-form">
+          <select name="new_role" onchange="this.form.submit()" style="padding:5px; font-size:11px;">
+            <option value="ministrant" {% if u[1]=='ministrant' %}selected{% endif %}>👥 Ministrant</option>
+            <option value="ksiez" {% if u[1]=='ksiez' %}selected{% endif %}>⛪ Ksiądz</option>
+            <option value="admin" {% if u[1]=='admin' %}selected{% endif %}>🔑 Admin</option>
+          </select>
+        </form>
+      </td>
+      <td>
+        {% if u[3] %}
+          <span class="status-active">✓ Aktywny</span>
+        {% else %}
+          <span class="status-inactive">✗ Nieaktywny</span>
+        {% endif %}
+      </td>
+      <td style="font-size:12px; color:#aaa;">{{ u[2] }}</td>
+      <td style="display:flex; gap:8px; align-items:center;">
+        {% if u[0] != session.user %}
+          <a href="{{ url_for('toggle_user', user=u[0]) }}"
+             class="btn {{ 'bg-off' if u[3] else 'bg-on' }}"
+             style="padding:12px 20px; text-decoration:none; flex:0; font-size:18px !important;">
+            {{ '❌ Off' if u[3] else '✓ On' }}
+          </a>
+          <a href="{{ url_for('delete_user', user=u[0]) }}"
+             onclick="return confirm('Usunąć {{ u[0] }}?');"
+             class="btn btn-danger"
+             style="padding:12px 20px; flex:0; font-size:18px !important;">🗑️</a>
+        {% else %}
+          <span class="muted" style="font-size:10px; padding:4px 8px;">👤 (Ty)</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <!-- MODAL SZCZEGÓŁÓW UŻYTKOWNIKA -->
+  <div id="userDetailsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; overflow-y:auto;">
+    <div style="position:relative; margin:50px auto; background:#2a2a2a; padding:30px; border-radius:8px; border:2px solid #9C27B0; max-width:600px; box-shadow:0 0 20px rgba(0,0,0,0.8);">
+      <button onclick="closeUserDetails()" style="position:absolute; top:10px; right:10px; background:#f44336; color:#fff; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-size:20px !important; font-weight:600;">✕</button>
+      <h3 style="color:#9C27B0; margin-top:0; font-size:28px;">👤 Szczegóły użytkownika</h3>
+      <div id="userDetailsContent" style="color:#fff; font-size:14px; line-height:1.8;"></div>
+      <div style="margin-top:20px; display:flex; gap:10px;">
+        <button onclick="resetLoginAttempts()" style="flex:1; padding:12px; background:#4CAF50; color:#fff; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:14px !important;">🔄 Reset logowania</button>
+        <button onclick="closeUserDetails()" style="flex:1; padding:12px; background:#f44336; color:#fff; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:14px !important;">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL NOTATEK -->
+  <div id="notesModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background:#2a2a2a; padding:30px; border-radius:8px; border:2px solid #FF9800; min-width:500px; box-shadow:0 0 20px rgba(0,0,0,0.8);">
+      <h3 style="color:#FF9800; margin-top:0; font-size:24px;">📝 Notatka do użytkownika</h3>
+      <p id="notesUser" style="color:#aaa; font-size:14px; margin-bottom:15px;">Użytkownik: <strong style="color:#fff;" id="notesUsername"></strong></p>
+      <textarea id="notesContent" placeholder="Wpisz notatkę o użytkowniku..." style="width:100%; min-height:100px; padding:12px; background:#1a1a1a; color:#fff; border:1px solid #555; border-radius:4px; box-sizing:border-box; font-size:13px;"></textarea>
+      <div style="display:flex; gap:10px; margin-top:20px;">
+        <button onclick="saveUserNotes()" style="flex:1; padding:12px; background:#4CAF50; color:#fff; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:14px !important;">💾 Zapisz notatkę</button>
+        <button onclick="closeNotesModal()" style="flex:1; padding:12px; background:#f44336; color:#fff; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:14px !important;">✗ Anuluj</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ZMIANY HASŁA -->
+  <div id="passwordModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000;">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background:#2a2a2a; padding:30px; border-radius:8px; border:2px solid #2196F3; min-width:400px; box-shadow:0 0 20px rgba(0,0,0,0.8);">
+      <h3 style="color:#2196F3; margin-top:0; font-size:24px;">🔐 Zmiana hasła</h3>
+      <p id="passwordModalUser" style="color:#aaa; font-size:14px; margin-bottom:15px;">Użytkownik: <strong style="color:#fff;" id="modalUsername"></strong></p>
+      
+      <form onsubmit="submitPasswordChange(event)">
+        <label style="color:#fff; display:block; margin-top:15px; font-weight:600; font-size:14px;">Nowe hasło (minimum 6 znaków):</label>
+        <input type="password" id="newPassword" placeholder="Nowe hasło..." required minlength="6" style="width:100%; padding:10px; margin:8px 0; background:#1a1a1a; color:#fff; border:1px solid #555; border-radius:4px; box-sizing:border-box;">
+        
+        <label style="color:#fff; display:block; margin-top:15px; font-weight:600; font-size:14px;">Potwierdź hasło:</label>
+        <input type="password" id="confirmPassword" placeholder="Potwierdź hasło..." required minlength="6" style="width:100%; padding:10px; margin:8px 0; background:#1a1a1a; color:#fff; border:1px solid #555; border-radius:4px; box-sizing:border-box;">
+        
+        <div id="passwordInfo" style="background:#1a1a1a; padding:10px; border-radius:4px; margin-top:15px; font-size:12px;">
+          <p style="color:#aaa; margin:5px 0;">✓ Minimum 6 znaków</p>
+          <p id="matchInfo" style="color:#f44336; margin:5px 0; display:none;">✗ Hasła się nie zgadzają!</p>
+        </div>
+        
+        <div style="display:flex; gap:10px; margin-top:20px;">
+          <button type="submit" style="flex:1; padding:12px; background:#4CAF50; color:#fff; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:14px !important;">✓ Zmień hasło</button>
+          <button type="button" onclick="closePasswordModal()" style="flex:1; padding:12px; background:#f44336; color:#fff; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:14px !important;">✗ Anuluj</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="add-user-form">
+    <h3>Dodaj nowego użytkownika</h3>
+    <form method="POST" action="{{ url_for('add_user') }}">
+      <input type="text" name="username" placeholder="Login" required>
+      <input type="password" name="password" placeholder="Hasło (min. 6 znaków)" required minlength="6">
+      <select name="role">
+        <option value="ministrant">Ministrant</option>
+        <option value="ksiez">Ksiądz</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button type="submit">Dodaj użytkownika</button>
+    </form>
+  </div>
+</section>
+
+<section id="obecnosci">
+  <h2>Obecności wszystkich</h2>
+  
+  <div class="manual-attendance">
+    <h3>Dodaj obecność - Wybierz mszę z harmonogramu</h3>
+    <form method="POST">
+      <input type="hidden" name="manual_attendance" value="1">
+      <label>Dla użytkownika:</label>
+      <select name="user" required>
+        <option value="">Wybierz użytkownika</option>
+        {% for u in users_filter %}
+        <option value="{{ u }}" {% if u==session.user %}selected{% endif %}>{{ u }} {% if u==session.user %}(Ty){% endif %}</option>
+        {% endfor %}
+      </select>
+      <label>Wybierz mszę z harmonogramu:</label>
+      <select name="mass_schedule_id" required>
+        <option value="">-- Wybierz mszę --</option>
+        {% if available_masses %}
+          {% for mass in available_masses %}
+          <option value="{{ mass[0] | string }}">{{ mass[1] }} o {{ mass[2] }} - {{ mass[3] }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="">Brak dostępnych mszy</option>
+        {% endif %}
+      </select>
+      <label>Uwagi (opcjonalnie):</label>
+      <textarea name="notes" placeholder="Dodatkowe uwagi..."></textarea>
+      <button type="submit">Dodaj obecność</button>
+    </form>
+  </div>
+
+  <div class="filters">
+    <h3>Filtruj obecności</h3>
+    <form method="GET">
+      <label>Tydzień od:</label>
+      <input type="date" name="week_start" value="{{ request.args.week_start }}">
+      <label>Miesiąc:</label>
+      <input type="month" name="month" value="{{ request.args.month }}">
+      <label>Użytkownik:</label>
+      <select name="user">
+        <option value="all">Wszyscy</option>
+        {% for u in users_filter %}
+        <option value="{{ u }}" {% if u==selected_user %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Filtruj</button>
+      <a href="?">Wyczyść filtry</a>
+    </form>
+  </div>
+
+  <div class="export-section">
+    <a href="{{ url_for('export_attendance') }}" class="export-btn">Eksportuj do CSV</a>
+  </div>
+
+  <table>
+    <tr>
+      <th>Użytkownik</th>
+      <th>Data</th>
+      <th>Punkty</th>
+      <th>Typ mszy</th>
+      <th>Uwagi</th>
+      <th>Status</th>
+      <th>Akcje</th>
+    </tr>
+    {% for r in records %}
+    <tr class="points-{{ r[6] }}">
+      <td><strong>{{ r[1] }}</strong></td>
+      <td>{{ r[2] }}</td>
+      <td class="points-cell">{{ r[3] }}</td>
+      <td>{{ r[4] }}</td>
+      <td>{{ r[5] or '-' }}</td>
+      <td>
+        <span class="status-badge status-{{ r[6] }}">
+          {% if r[6] == 'pending' %}Oczekujące
+          {% elif r[6] == 'approved' %}Zaakceptowane
+          {% elif r[6] == 'rejected' %}Odrzucone
+          {% else %}{{ r[6] }}{% endif %}
+        </span>
+      </td>
+      <td style="display:flex; gap:5px;">
+        <a href="{{ url_for('edit_points', points_id=r[0]) }}" class="btn" style="padding:6px 10px; font-size:12px;">✏️ Edytuj</a>
+        <a href="{{ url_for('delete_points', points_id=r[0]) }}" class="btn btn-danger" onclick="return confirm('Usunąć ten punkt?')" style="padding:6px 10px; font-size:12px;">🗑️ Usuń</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section id="akceptacja">
+  <h2>Akceptacja punktów</h2>
+  
+  {% if pending_approvals_list %}  <!-- ZMIANA: zmieniona nazwa zmiennej -->
+  <div class="pending-approvals">
+    <h3>Punkty oczekujące na akceptację ({{ pending_approvals_list|length }})</h3>  <!-- ZMIANA: zmieniona nazwa zmiennej -->
+    <table>
+      <tr>
+        <th>Użytkownik</th>
+        <th>Data</th>
+        <th>Punkty</th>
+        <th>Typ mszy</th>
+        <th>Uwagi</th>
+        <th>Akcje</th>
+      </tr>
+      {% for pa in pending_approvals_list %}  <!-- ZMIANA: zmieniona nazwa zmiennej -->
+      <tr>
+        <td>{{ pa[1] }} ({{ pa[7] }})</td>
+        <td>{{ pa[2] }}</td>
+        <td>{{ pa[3] }}</td>
+        <td>{{ pa[4] }}</td>
+        <td>{{ pa[5] or '-' }}</td>
+        <td>
+          <a href="{{ url_for('approve_points', points_id=pa[0]) }}" class="btn btn-success" onclick="return confirm('Zaakceptować punkty?')">Akceptuj</a>
+          <a href="{{ url_for('reject_points', points_id=pa[0]) }}" class="btn btn-danger" onclick="return confirm('Odrzucić punkty?')">Odrzuć</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <div class="no-pending">
+    <p>Brak punktów oczekujących na akceptację.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section id="statystyki">
+  <h2>Statystyki użytkowników</h2>
+  <table>
+    <tr>
+      <th>Użytkownik</th>
+      <th>Rola</th>
+      <th>Status</th>
+      <th>Akcje</th>
+      <th>Łączna suma punktów</th>
+      <th>Punkty w tym miesiącu</th>
+      <th>Obecności w miesiącu</th>
+    </tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u[0] }}</td>
+      <td>{{ u[1] }}</td>
+      <td>{% if u[3] %}Aktywny{% else %}Nieaktywny{% endif %}</td>
+      <td>{{ get_user_stats(u[0]).total }}</td>
+      <td>{{ get_user_stats(u[0]).monthly }}</td>
+      <td>{{ get_user_stats(u[0]).count_monthly }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section id="konfiguracja">
+  <h2>Konfiguracja systemu</h2>
+  <form method="POST" action="{{ url_for('update_config') }}">
+    <div class="config-grid">
+      <div class="config-item">
+        <label>Punkty za zwykłą mszę:</label>
+        <input type="number" name="config_points_regular" value="{{ config.points_regular }}" min="1" required>
+      </div>
+      <div class="config-item">
+        <label>Punkty za mszę specjalną:</label>
+        <input type="number" name="config_points_special" value="{{ config.points_special }}" min="1" required>
+      </div>
+      <div class="config-item">
+        <label>Punkty za święto:</label>
+        <input type="number" name="config_points_holiday" value="{{ config.points_holiday }}" min="1" required>
+      </div>
+      <div class="config-item">
+        <label>Bonus tygodniowy:</label>
+        <input type="number" name="config_bonus_weekly" value="{{ config.bonus_weekly }}" min="0" required>
+        <small>Ustaw 0 aby wyłączyć</small>
+      </div>
+      <div class="config-item">
+        <label>Bonus miesięczny:</label>
+        <input type="number" name="config_bonus_monthly" value="{{ config.bonus_monthly }}" min="0" required>
+        <small>Ustaw 0 aby wyłączyć</small>
+      </div>
+      <div class="config-item">
+        <label>Maks. punktów dziennie:</label>
+        <input type="number" name="config_max_points_per_day" value="{{ config.max_points_per_day }}" min="0" required>
+        <small>Ustaw 0 aby wyłączyć limit</small>
+      </div>
+      <div class="config-item">
+        <label>
+          <input type="checkbox" name="config_enable_point_approval" value="1" {% if config.enable_point_approval == '1' %}checked{% endif %}>
+          Wymagaj akceptacji punktów przez admina/księdza
+        </label>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Zapisz konfigurację</button>
+  </form>
+</section>
+
+<section id="sezony">
+  <h2>Zarządzanie sezonami punktów</h2>
+  
+  <div class="current-season">
+    <h3>Aktualny sezon punktów</h3>
+    {% set current_season = seasons|selectattr("0", "equalto", config.current_season_id|int)|first %}
+    {% if current_season %}
+    <div class="season-card active">
+      <h4>{{ current_season[1] }}</h4>
+      <p>Od: {{ current_season[2] }} Do: {{ current_season[3] }}</p>
+      <span class="badge badge-success">Aktywny</span>
+    </div>
+    {% else %}
+    <p>Brak aktywnego sezonu.</p>
+    {% endif %}
+  </div>
+
+  <div class="add-season">
+    <h3>Dodaj nowy sezon</h3>
+    <form method="POST" action="{{ url_for('add_season') }}">
+      <input type="text" name="name" placeholder="Nazwa sezonu" required>
+      <input type="date" name="start_date" required>
+      <input type="date" name="end_date" required>
+      <button type="submit">Dodaj sezon</button>
+    </form>
+  </div>
+
+  <div class="seasons-list">
+    <h3>Wszystkie sezony</h3>
+    <table>
+      <tr>
+        <th>Nazwa</th>
+        <th>Od</th>
+        <th>Do</th>
+        <th>Status</th>
+      <th>Akcje</th>
+        <th>Akcje</th>
+      </tr>
+      {% for season in seasons %}
+      <tr>
+        <td>{{ season[1] }}</td>
+        <td>{{ season[2] }}</td>
+        <td>{{ season[3] }}</td>
+        <td>
+          {% if season[0] == config.current_season_id|int %}
+            <span class="badge badge-success">Aktywny</span>
+          {% else %}
+            <span class="badge badge-secondary">Nieaktywny</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if season[0] != config.current_season_id|int %}
+            <a href="{{ url_for('set_current_season', season_id=season[0]) }}" class="btn btn-success" onclick="return confirm('Ustawić ten sezon jako aktywny?')">Aktywuj</a>
+          {% endif %}
+          <a href="{{ url_for('delete_season', season_id=season[0]) }}" class="btn btn-danger" onclick="return confirm('Usunąć ten sezon?')">Usuń</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</section>
+
+<section id="typymszy">
+  <h2>Zarządzanie typami mszy</h2>
+  
+  <div class="add-mass-type">
+    <h3>Dodaj nowy typ mszy</h3>
+    <form method="POST" action="{{ url_for('add_mass_type') }}">
+      <input type="text" name="name" placeholder="Nazwa typu" required>
+      <input type="number" name="points" placeholder="Punkty" min="1" required>
+      <input type="text" name="description" placeholder="Opis">
+      <button type="submit">Dodaj typ mszy</button>
+    </form>
+  </div>
+
+  <table style="width: 100%;">
+    <tr>
+      <th>Nazwa</th>
+      <th colspan="5">Ustawienia</th>
+      <th>Akcje</th>
+    </tr>
+    {% for mt in mass_types %}
+    <tr>
+      <td><strong>{{ mt[1] }}</strong></td>
+      <td>
+        <form method="POST" action="{{ url_for('update_mass_type', mass_type_id=mt[0]) }}" style="display: flex; gap: 5px; align-items: center;">
+          <input type="number" name="points" value="{{ mt[2] }}" min="1" style="width: 60px;" title="Punkty za 1. mszę">
+          <input type="text" name="description" value="{{ mt[4] or '' }}" style="width: 120px;" title="Opis">
+          <label><input type="checkbox" name="is_active" value="on" {% if mt[3] %}checked{% endif %}> Aktyw</label>
+          <label><input type="checkbox" name="bonus_second_mass" value="on" {% if mt[5] %}checked{% endif %}> Bonus</label>
+          <input type="number" name="bonus_points" value="{{ mt[6] or 0 }}" min="0" style="width: 60px;" title="Pkt za 2. mszę" placeholder="Pkt">
+          <button type="submit" style="padding: 5px 10px; white-space: nowrap;">Zapisz</button>
+        </form>
+      </td>
+      <td>
+        <a href="{{ url_for('delete_mass_type', mass_type_id=mt[0]) }}" onclick="return confirm('Usunąć?');" class="btn btn-danger" style="padding: 5px 10px;">Usuń</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+<section id="harmonogram">
+  <h2>Harmonogram mszy</h2>
+  <form method="POST" action="{{ url_for('add_mass_schedule') }}">
+    <h3>Dodaj mszę do harmonogramu</h3>
+    <input type="date" name="data" required>
+    <input type="time" name="godzina" required>
+    <select name="typ_mszy" required>
+      {% for mt in mass_types %}
+        {% if mt[3] %}
+          <option value="{{ mt[1] }}">{{ mt[1] }} ({{ mt[2] }} pkt)</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+    <textarea name="uwagi" placeholder="Uwagi (opcjonalnie)"></textarea>
+    <button type="submit">Dodaj do harmonogramu</button>
+  </form>
+
+  <h3>Msze w harmonogramie 
+    <button class="btn btn-danger" onclick="deleteAllSchedules()" style="margin-left:10px; padding:5px 10px; font-size:12px !important;">🗑️ Usuń wszystkie</button>
+  </h3>
+  <table>
+    <tr>
+      <th>Data</th>
+      <th>Godzina</th>
+      <th>Typ mszy</th>
+      <th>Uwagi</th>
+      <th>Akcje</th>
+    </tr>
+    {% if schedule_list %}
+      {% for schedule in schedule_list %}
+      <tr>
+        <td>{{ schedule[1] }}</td>
+        <td>{{ schedule[2] }}</td>
+        <td>{{ schedule[3] }}</td>
+        <td>{{ schedule[4] or '-' }}</td>
+        <td>
+          <a href="{{ url_for('edit_mass_schedule', schedule_id=schedule[0]) }}" class="btn">Edytuj</a>
+          <a href="{{ url_for('delete_mass_schedule', schedule_id=schedule[0]) }}" class="btn btn-danger" onclick="return confirm('Usunąć tę mszę?')">Usuń</a>
+        </td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="5">Brak mszy w harmonogramie</td></tr>
+    {% endif %}
+  </table>
+</section>
+
+<section id="ogloszenia">
+  <h2>Ogłoszenia</h2>
+  <form method="POST" action="/add_announcement">
+    <h3>Dodaj nowe ogłoszenie</h3>
+    <input type="text" name="tytul" placeholder="Tytuł" required>
+    <textarea name="tresc" placeholder="Treść" required></textarea>
+    <label>
+      Priorytet:
+      <select name="priorytet">
+        <option value="0">Normalny</option>
+        <option value="1">Ważne</option>
+      </select>
+    </label>
+    <button type="submit">Dodaj ogłoszenie</button>
+  </form>
+  
+  <div class="announcements-list">
+    <h3>Lista ogłoszeń ({{ announcements|length }})</h3>
+    {% if announcements %}
+      {% for o in announcements %}
+      <div class="announcement {% if o[5] > 0 %}priority{% endif %}">
+        <div class="announcement-header">
+          <div class="announcement-title-priority">
+            <h4>{{ o[1] }}</h4>
+            {% if o[5] > 0 %}
+            <span class="priority-badge">WAŻNE</span>
+            {% endif %}
+          </div>
+          <div class="announcement-actions">
+            <span class="date">{{ o[3] }}</span>
+            <a href="{{ url_for('edit_announcement', announcement_id=o[0]) }}" class="btn btn-secondary">Edytuj</a>
+            <a href="{{ url_for('delete_announcement', announcement_id=o[0]) }}" 
+               onclick="return confirm('Usunąć to ogłoszenie?');"
+               class="btn btn-danger">Usuń</a>
+          </div>
+        </div>
+        <p class="announcement-content">{{ o[2] }}</p>
+        <div class="announcement-footer">
+          <small>Autor: <strong>{{ o[4] }}</strong> | {{ o[3] }}</small>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="text-align: center; padding: 20px; color: var(--text-secondary); background:#2a2a2a; border-radius:8px; margin:10px 0;">Brak ogłoszeń</p>
+    {% endif %}
+  </div>
+</section>
+
+
+<section id="historia">
+  <h2>Historia punktów</h2>
+  <p class="section-description">Pełna historia zdobywania punktów przez wszystkich ministrantów</p>
+  
+  <table>
+    <tr>
+      <th>Użytkownik</th>
+      <th>Punkty</th>
+      <th>Data</th>
+      <th>Typ mszy</th>
+      <th>Uwagi</th>
+      <th>Status</th>
+      <th>Akcje</th>
+    </tr>
+    {% if records %}
+      {% for r in records %}
+      <tr>
+        <td><strong>{{ r[1] }}</strong></td>
+        <td class="points-cell">{{ r[3] }}</td>
+        <td>{{ r[2] }}</td>
+        <td>{{ r[4] }}</td>
+        <td>{{ r[5] or '-' }}</td>
+        <td>
+          <span class="status-badge status-{{ r[6] }}">
+            {% if r[6] == 'pending' %}Oczekujące
+            {% elif r[6] == 'approved' %}Zaakceptowane
+            {% elif r[6] == 'rejected' %}Odrzucone
+            {% else %}{{ r[6] }}{% endif %}
+          </span>
+        </td>
+        <td style="display:flex; gap:5px;">
+          <a href="{{ url_for('edit_points', points_id=r[0]) }}" class="btn" style="padding:6px 10px; font-size:12px;">✏️ Edytuj</a>
+          <a href="{{ url_for('delete_points', points_id=r[0]) }}" class="btn btn-danger" onclick="return confirm('Usunąć ten punkt?')" style="padding:6px 10px; font-size:12px;">🗑️ Usuń</a>
+        </td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="7" style="text-align: center; padding: 20px;">Brak historii punktów</td></tr>
+    {% endif %}
+  </table>
+</section>
+
+<section id="wiadomosci">
+  <h2>💬 Wszystkie rozmowy - Monitoring</h2>
+  <div style="display:grid; grid-template-columns: 300px 1fr; gap: 20px; height:calc(100vh - 200px);">
+    <div class="conversations-list" style="background:#2a2a2a; padding:15px; border-radius:8px; overflow-y:auto; border:1px solid #444; min-height:0;">
+      <h3 style="margin-top:0; color:#2196F3;">📋 Rozmowy</h3>
+      <div id="convList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+    <div class="chat-window" style="background:#2a2a2a; border-radius:8px; border:1px solid #444; display:flex; flex-direction:column; min-height:0;">
+      <div id="noConvSelected" style="flex:1; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; color:#aaa; font-size:16px;">
+        ← Wybierz rozmowę aby wyświetlić czat
+      </div>
+      <div id="chatBox" style="display:none; flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="background:#1a1a1a; padding:15px; border-bottom:1px solid #444;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0;">
+            <h3 id="chatTitle" style="margin:0; color:#2196F3; font-size:18px;"></h3>
+            <div style="display:flex; gap:5px;">
+              <button id="closeBtn" onclick="closeConv()" class="btn btn-danger" style="padding:8px 12px; font-size:14px !important; background:#2196F3;">📌 Zamknij</button>
+              <button id="deleteBtn" onclick="deleteConv()" class="btn btn-danger" style="padding:8px 12px; font-size:14px !important; background:#d32f2f;">🗑️ Usuń</button>
+            </div>
+          </div>
+        </div>
+        <div id="messages" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:10px; min-height:0;"></div>
+        <form onsubmit="sendMsg(event)" style="background:#1a1a1a; padding:15px; border-top:1px solid #444; display:flex; flex-direction:column; gap:10px; flex-shrink:0;">
+          <textarea id="msgInput" placeholder="💭 Wpisz wiadomość... (Enter+Ctrl aby wysłać)" required style="width:100%; min-height:150px; padding:12px; background:#2a2a2a; color:#fff; border:1px solid #555; border-radius:4px; resize:vertical; font-size:14px; font-family:Arial,sans-serif; box-sizing:border-box;"></textarea>
+          <button type="submit" class="btn" style="align-self:flex-end; padding:10px 20px; font-size:13px; background:#4CAF50; color:#fff; font-weight:600; border:none; border-radius:4px; cursor:pointer;">📤 Wyślij wiadomość</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="moderacja">
+  <h2>Moderacja - Notatki i Blokowanie</h2>
+  
+  <h3>Dodaj notatkę dla ministranta</h3>
+  <form onsubmit="addPenalty(event)">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Ministrant:</label>
+        <select id="penaltyMinistrant" required>
+          <option value="">-- Wybierz --</option>
+          {% for u in all_users %}
+            {% if u[1] == 'ministrant' %}
+            <option value="{{ u[0] }}">{{ u[0] }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Typ notatki:</label>
+        <select id="penaltyType" required>
+          <option value="">-- Wybierz --</option>
+          <option value="Informacja">Informacja</option>
+          <option value="Ostrzeżenie">Ostrzeżenie</option>
+          <option value="Uwaga">Uwaga</option>
+          <option value="Gratulacje">Gratulacje</option>
+          <option value="Inne">Inne</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Treść notatki (opcjonalnie):</label>
+      <textarea id="penaltyDesc" style="min-height:60px;"></textarea>
+    </div>
+    <button type="submit">Dodaj notatkę</button>
+  </form>
+  
+  <h3>Aktywne notatki</h3>
+  <div id="penaltiesList"></div>
+  
+  <h3 style="margin-top:30px;">Blokowanie użytkowników</h3>
+  <form method="POST" action="/block_user">
+    <label>Zablokuj użytkownika:</label>
+    <select name="blokowany" required>
+      <option value="">-- Wybierz użytkownika --</option>
+      {% for u in all_users %}
+        <option value="{{ u[0] }}">{{ u[0] }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Zablokuj</button>
+  </form>
+  
+  <h3>Zablokowani użytkownicy</h3>
+  <table>
+    <tr><th>Użytkownik</th><th>Data blokady</th><th>Akcje</th></tr>
+    <tbody id="blockedList"></tbody>
+  </table>
+</section>
+
+<section id="raporty">
+  <h2>Raporty zaawansowane</h2>
+  
+  <div style="background:#2a2a2a; padding:20px; border-radius:8px; margin-bottom:20px;">
+    <h3 style="margin-top:0; color:#2196F3;">📊 Wybierz typ raportu i filtry</h3>
+    
+    <div class="reports-filters" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-bottom:20px;">
+      
+      <!-- RAPORT MIESIĘCZNY -->
+      <div style="background:#1a1a1a; padding:15px; border-radius:4px; border:1px solid #444;">
+        <h4 style="margin-top:0; color:#4CAF50;">📅 Raport Miesięczny</h4>
+        <form method="GET" action="/reports">
+          <input type="hidden" name="type" value="monthly">
+          <label style="display:block; margin-bottom:8px;">Miesiąc i rok:</label>
+          <input type="month" name="month" value="{{ request.args.month or today_month }}" style="width:100%; padding:8px; background:#2a2a2a; color:#fff; border:1px solid #555; border-radius:4px; margin-bottom:10px;">
+          <button type="submit" class="btn" style="width:100%; padding:10px; background:#4CAF50; font-size:13px;">📈 Pokaż raport</button>
+        </form>
+      </div>
+      
+      <!-- RANKING UŻYTKOWNIKÓW -->
+      <div style="background:#1a1a1a; padding:15px; border-radius:4px; border:1px solid #444;">
+        <h4 style="margin-top:0; color:#2196F3;">🏆 Ranking Użytkowników</h4>
+        <form method="GET" action="/reports">
+          <input type="hidden" name="type" value="user_ranking">
+          <label style="display:block; margin-bottom:8px;">Użytkownik (opcjonalnie):</label>
+          <select name="user" style="width:100%; padding:8px; background:#2a2a2a; color:#fff; border:1px solid #555; border-radius:4px; margin-bottom:10px;">
+            <option value="">Wszyscy</option>
+            {% for u in all_users %}
+              {% if u[1] == 'ministrant' %}
+              <option value="{{ u[0] }}">{{ u[0] }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn" style="width:100%; padding:10px; background:#2196F3; font-size:13px;">🏅 Pokaż ranking</button>
+        </form>
+      </div>
+      
+      <!-- STATYSTYKI TYGODNIOWE -->
+      <div style="background:#1a1a1a; padding:15px; border-radius:4px; border:1px solid #444;">
+        <h4 style="margin-top:0; color:#FF9800;">📆 Statystyki Tygodniowe</h4>
+        <form method="GET" action="/reports">
+          <input type="hidden" name="type" value="weekly_stats">
+          <label style="display:block; margin-bottom:8px;">Tydzień od (poniedziałek):</label>
+          <input type="date" name="week_start" value="{{ request.args.week_start or today_date }}" style="width:100%; padding:8px; background:#2a2a2a; color:#fff; border:1px solid #555; border-radius:4px; margin-bottom:10px;">
+          <button type="submit" class="btn" style="width:100%; padding:10px; background:#FF9800; font-size:13px;">📊 Pokaż statystyki</button>
+        </form>
+      </div>
+      
+    </div>
+    
+    <!-- WYNIKI RAPORTU -->
+    <div id="reportResults" style="margin-top:20px;"></div>
+  </div>
+  
+</section>
+
+<section id="system">
+  <h2>🔔 System Notyfikacji</h2>
+  
+  <div style="background:#2a2a2a; padding:20px; border-radius:8px; margin-bottom:20px;">
+    <h3 style="margin-top:0; color:#2196F3;">💾 Backup & Restore</h3>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+      <button class="btn" onclick="exportAllData()" style="padding:10px 15px; background:#4CAF50; font-size:14px !important;">📥 Eksportuj wszystkie dane</button>
+      <button class="btn" onclick="document.getElementById('importFile').click()" style="padding:10px 15px; background:#2196F3; font-size:14px !important;">📤 Importuj dane</button>
+      <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importAllData(event)">
+    </div>
+  </div>
+  
+  <div style="background:#2a2a2a; padding:20px; border-radius:8px; margin-bottom:20px;">
+    <h3 style="margin-top:0; color:#2196F3;">📱 Zarejestrowane urządzenia</h3>
+    <div style="display:flex; gap:10px; margin-bottom:15px;">
+      <button class="btn" onclick="loadRegisteredDevices()" style="padding:10px 15px; background:#2196F3; font-size:14px !important;">🔄 Odśwież</button>
+      <input type="text" id="notificationTitle" placeholder="Tytuł powiadomienia..." style="padding:8px; flex:1; background:#1a1a1a; color:#fff; border:1px solid #555;">
+      <textarea id="notificationMsg" placeholder="Wiadomość..." style="padding:8px; flex:1; background:#1a1a1a; color:#fff; border:1px solid #555; height:40px;"></textarea>
+      <button class="btn" onclick="sendNotifToAll()" style="padding:10px 15px; background:#4CAF50; font-size:14px !important;">📤 Wyślij do wszystkich</button>
+    </div>
+    <table style="width:100%; border-collapse:collapse;">
+      <tr style="background:#1a1a1a; border-bottom:1px solid #555;">
+        <th style="padding:10px; text-align:left;">📱 Nazwa urządzenia</th>
+        <th style="padding:10px; text-align:left;">🆔 ID urządzenia</th>
+        <th style="padding:10px; text-align:left;">📅 Zarejestrowano</th>
+        <th style="padding:10px; text-align:left;">⏱️ Ostatni ping</th>
+        <th style="padding:10px; text-align:center;">Status</th>
+      </tr>
+      <tbody id="devicesList"></tbody>
+    </table>
+  </div>
+  
+  <div class="system-info">
+    <div class="info-card">
+      <h3>Backup danych</h3>
+      <p>Regularnie twórz kopię zapasową bazy danych.</p>
+      <a href="{{ url_for('export_attendance') }}" class="btn">Eksportuj dane</a>
+    </div>
+    
+    <div class="info-card">
+      <h3>Statystyki systemu</h3>
+      <ul>
+        <li>Liczba użytkowników: {{ total_users }}</li>
+        <li>Zapisane obecności: {{ total_records }}</li>
+        <li>Aktywne ogłoszenia: {{ total_announcements }}</li>
+        <li>Nadchodzące msze: {{ upcoming_masses }}</li>
+        <li>Punkty do akceptacji: {{ pending_approvals }}</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script>
+// Poprawiona nawigacja między sekcjami
+document.addEventListener("DOMContentLoaded", function() {
+    // Ukryj wszystkie sekcje na początku
+    document.querySelectorAll("section").forEach(sec => {
+        sec.style.display = "none";
+    });
+    
+    // Pokaż pierwszą sekcję lub zapisaną w sessionStorage
+    const activeSection = sessionStorage.getItem('activeSection') || 'zarzadzanie';
+    const targetSection = document.getElementById(activeSection);
+    if (targetSection) {
+        targetSection.style.display = "block";
+    } else {
+        const firstSection = document.querySelector("section");
+        if (firstSection) {
+            firstSection.style.display = "block";
+        }
+    }
+});
+
+// Obsługa kliknięcia w linki nawigacyjne
+document.querySelectorAll("nav a").forEach(link => {
+    link.addEventListener("click", function(e) {
+        e.preventDefault();
+        const targetId = this.getAttribute("href").substring(1);
+        
+        // Ukryj wszystkie sekcje
+        document.querySelectorAll("section").forEach(sec => {
+            sec.style.display = "none";
+        });
+        
+        // Pokaż wybraną sekcję
+        const targetSection = document.getElementById(targetId);
+        if (targetSection) {
+            targetSection.style.display = "block";
+            sessionStorage.setItem('activeSection', targetId);
+        }
+    });
+});
+
+function clearOldData() {
+  if(confirm('Czy na pewno chcesz wyczyścić stare dane (starsze niż 1 rok)?')) {
+    fetch('/admin/clear_old_data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      alert(data.message);
+      if (data.success) {
+        setTimeout(() => location.reload(), 2000);
+      }
+    })
+    .catch(error => {
+      alert('Błąd podczas czyszczenia danych');
+    });
+  }
+}
+
+function resetSystem() {
+  if(confirm('OSTRZEŻENIE: Czy na pewno chcesz zresetować system? Spowoduje to usunięcie wszystkich danych (oprócz użytkowników i konfiguracji)!')) {
+    const confirmation = prompt('Aby potwierdzić, wpisz "RESET"');
+    if (confirmation === 'RESET') {
+      fetch('/admin/reset_system', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ confirmation: confirmation })
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert(data.message);
+        if (data.success) {
+          setTimeout(() => location.reload(), 3000);
+        }
+      })
+      .catch(error => {
+        alert('Błąd podczas resetowania systemu');
+      });
+    }
+  }
+}
+</script>
+</body>
+</html>
+<script>
+  fetch('/get_blocked_users').then(r => r.json()).then(blocked => {
+    const list = document.getElementById('blockedList');
+    list.innerHTML = blocked.map(b => `
+      <tr>
+        <td>${b[1]}</td>
+        <td>${b[3]}</td>
+        <td><form method="POST" action="/unblock_user/${b[1]}" style="display:inline;">
+          <button type="submit" class="btn btn-danger" style="padding:2px 5px;">Odblokuj</button>
+        </form></td>
+      </tr>
+    `).join('');
+  });
+
+function deleteMsg(id) {
+  if(confirm('Usunąć wiadomość?')) {
+    fetch('/delete_message/' + id, {method: 'POST'}).then(() => {
+      loadAdminMessages();
+    });
+  }
+}
+if(document.getElementById('blockedList')) {
+  loadBlockedUsers();
+}
+</script>
+<script>
+let currentConv = null;
+
+async function loadConversations() {
+  const res = await fetch('/get_conversations');
+  const convs = await res.json();
+  const list = document.getElementById('convList');
+  list.innerHTML = convs.map(c => `
+    <div class="conv-item" onclick="openConv(${c.id}, '${c.ministrant}', '${c.odbiorca}', '${c.status}')" style="padding:10px; cursor:pointer; border:1px solid #ddd; margin:5px 0; border-radius:5px; background:${c.status=='closed'?'#f0f0f0':'#fff'}; font-weight:${currentConv==c.id?'bold':'normal'}">
+      <strong>${c.ministrant}</strong> → ${c.odbiorca}<br/>
+      <small>${c.status=='closed'?'ZAMKNIĘTA':'Otwarta'}</small>
+    </div>
+  `).join('') || '<p>Brak rozmów</p>';
+}
+
+async function openConv(id, min, odb, status) {
+  currentConv = {id, status};
+  document.getElementById('noConvSelected').style.display = 'none';
+  document.getElementById('chatBox').style.display = 'block';
+  document.getElementById('chatTitle').innerHTML = min + ' → ' + odb + (status=='closed'?' (ZAMKNIĘTA)':'');
+  await loadMessages();
+}
+
+async function loadMessages() {
+  if(!currentConv) return;
+  const res = await fetch('/get_conversation/' + currentConv.id);
+  const msgs = await res.json();
+  const box = document.getElementById('messages');
+  box.innerHTML = msgs.map(m => `
+    <div style="margin:5px 0; padding:8px; background:#f5f5f5; border-radius:3px;">
+      <strong>${m.nadawca}:</strong> ${m.tresc}<br/>
+      <small>${m.data}</small>
+      <button onclick="deleteMsg(${m.id})" style="margin-left:10px; padding:2px 5px; font-size:11px;">Usuń</button>
+    </div>
+  `).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMsg(e) {
+  e.preventDefault();
+  if(!currentConv) return;
+  const text = document.getElementById('msgInput').value;
+  if(!text) return;
+  const fd = new FormData();
+  fd.append('conversation_id', currentConv.id);
+  fd.append('tresc', text);
+  const res = await fetch('/send_message', {method:'POST', body:fd});
+  const data = await res.json();
+  if(data.success) {
+    document.getElementById('msgInput').value = '';
+    await loadMessages();
+  }
+}
+
+async function deleteMsg(id) {
+  if(confirm('Usunąć wiadomość?')) {
+    const res = await fetch('/delete_message/'+id, {method:'POST'});
+    if(res.ok) await loadMessages();
+  }
+}
+
+async function closeConv() {
+  if(confirm('Zamknąć rozmowę?')) {
+    const res = await fetch('/close_conversation/'+currentConv.id, {method:'POST'});
+    const data = await res.json();
+    if(data.success) {
+      currentConv.status = 'closed';
+      await loadConversations();
+      await loadMessages();
+    }
+  }
+}
+
+if(document.getElementById('convList')) {
+  loadConversations();
+  setInterval(loadConversations, 10000);
+}
+</script>

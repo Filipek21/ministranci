@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Panel Księdza</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1>Panel Księdza</h1>
+  <div class="user-info">
+    <span>Zalogowany jako: {{ session.user }}</span>
+    <button onclick="toggleChangePassword()" class="btn">Zmiana hasła</button>
+    <a href="/logout" class="logout-btn">Wyloguj</a>
+  </div>
+</header>
+
+<!-- Modal zmiany hasła -->
+<div id="changePasswordModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="toggleChangePassword()">&times;</span>
+    <h3>Zmiana hasła</h3>
+    <form id="changePasswordForm">
+      <input type="password" name="current_password" placeholder="Obecne hasło" required>
+      <input type="password" name="new_password" placeholder="Nowe hasło" required>
+      <button type="submit">Zmień hasło</button>
+    </form>
+    <div id="passwordMessage"></div>
+  </div>
+</div>
+
+<nav>
+  <a href="#obecnosci">Obecności</a>
+  <a href="#akceptacja">Akceptacja punktów</a>
+  <a href="#statystyki">Statystyki</a>
+  <a href="#historia">Historia punktów</a>
+  <a href="#harmonogram">Harmonogram</a>
+  <a href="#ogloszenia">Ogłoszenia</a>
+  <a href="#wiadomosci">Wiadomości</a>
+  <a href="#raporty">Raporty</a>
+</nav>
+
+<section id="obecnosci">
+  <h2>Obecności</h2>
+  
+  <div class="manual-attendance">
+    <h3>Ręczne dodawanie obecności</h3>
+    <form method="POST">
+      <input type="hidden" name="manual_attendance" value="1">
+      <select name="user" required>
+        <option value="">Wybierz użytkownika</option>
+        {% for u in users %}
+        <option value="{{ u }}">{{ u }}</option>
+        {% endfor %}
+      </select>
+      <input type="date" name="date" value="{{ today }}" required>
+      <select name="mass_type">
+        {% for mt in mass_types %}
+        <option value="{{ mt[0] }}">{{ mt[0] }} ({{ mt[1] }} pkt)</option>
+        {% endfor %}
+      </select>
+      <textarea name="notes" placeholder="Uwagi (opcjonalnie)"></textarea>
+      <button type="submit">Dodaj obecność</button>
+    </form>
+  </div>
+
+  <div class="filters">
+    <h3>Filtruj obecności</h3>
+    <form method="GET">
+      <label>Tydzień od:</label>
+      <input type="date" name="week_start" value="{{ request.args.week_start }}">
+      <label>Miesiąc:</label>
+      <input type="month" name="month" value="{{ request.args.month }}">
+      <label>Użytkownik:</label>
+      <select name="user">
+        <option value="all">Wszyscy</option>
+        {% for u in users %}
+        <option value="{{ u }}" {% if u==selected_user %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Filtruj</button>
+      <a href="?">Wyczyść filtry</a>
+    </form>
+  </div>
+
+  <div class="export-section">
+    <a href="{{ url_for('export_attendance') }}" class="export-btn">Eksportuj do CSV</a>
+  </div>
+
+  <table>
+    <tr>
+      <th>Użytkownik</th>
+      <th>Data</th>
+      <th>Punkty</th>
+      <th>Typ mszy</th>
+      <th>Uwagi</th>
+      <th>Status</th>
+      <th>Akcje</th>
+    </tr>
+    {% for r in records %}
+      <th>Akcje</th>
+    <tr class="points-{{ r[2] }} status-{{ r[6] }}">
+      <td>{{ r[2] }}</td>
+      <td>{{ r[2] }}</td>
+      <td>{{ r[2] }}</td>
+      <td class="mass-type-{{ r[5] }}">{{ r[5] }}</td>
+      <td>{{ r[4] or '-' }}</td>
+      <td>
+        <span class="status-badge status-{{ r[6] }}">
+          {% if r[5] == 'pending' %}Oczekujące
+          {% elif r[5] == 'approved' %}Zaakceptowane
+          {% elif r[5] == 'rejected' %}Odrzucone
+          {% else %}{{ r[5] }}{% endif %}
+        </span>
+      </td>
+    </tr>
+      <td>
+        <a href="{{ url_for('edit_points', points_id=r[0]) }}" class="btn">Edytuj</a>
+        <a href="{{ url_for('delete_points', points_id=r[0]) }}" class="btn btn-danger" onclick="return confirm('Usunąć punkt?')">Usuń</a>
+      </td>
+    {% endfor %}
+  </table>
+</section>
+
+<section id="akceptacja">
+  <h2>Akceptacja punktów</h2>
+  
+  {% if pending_approvals %}
+  <div class="pending-approvals">
+    <h3>Punkty oczekujące na akceptację ({{ pending_approvals|length }})</h3>
+    <table>
+      <tr>
+        <th>Użytkownik</th>
+        <th>Data</th>
+        <th>Punkty</th>
+        <th>Typ mszy</th>
+        <th>Uwagi</th>
+        <th>Akcje</th>
+      </tr>
+      {% for pa in pending_approvals %}
+      <tr>
+        <td>{{ pa[1] }} ({{ pa[7] }})</td>
+        <td>{{ pa[2] }}</td>
+        <td>{{ pa[3] }}</td>
+        <td>{{ pa[4] }}</td>
+        <td>{{ pa[5] or '-' }}</td>
+        <td>
+          <a href="{{ url_for('approve_points', points_id=pa[0]) }}" class="btn btn-success" onclick="return confirm('Zaakceptować punkty?')">Akceptuj</a>
+          <a href="{{ url_for('reject_points', points_id=pa[0]) }}" class="btn btn-danger" onclick="return confirm('Odrzucić punkty?')">Odrzuć</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <div class="no-pending">
+    <p>Brak punktów oczekujących na akceptację.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section id="statystyki">
+  <h2>Statystyki ministrantów</h2>
+  <table>
+    <tr>
+      <th>Użytkownik</th>
+      <th>Łączna suma punktów</th>
+      <th>Punkty w tym miesiącu</th>
+      <th>Szczegóły</th>
+    </tr>
+    {% for user in users %}
+    <tr>
+      <td>{{ user }}</td>
+      <td id="total-{{ user|replace(' ', '_') }}">Ładowanie...</td>
+      <td id="monthly-{{ user|replace(' ', '_') }}">Ładowanie...</td>
+      <td>
+        <button data-user="{{ user }}" onclick="showUserDetails(this.getAttribute('data-user'))">Pokaż szczegóły</button>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section id="harmonogram">
+  <h2>Harmonogram mszy</h2>
+  <form method="POST" action="{{ url_for('add_mass_schedule') }}">
+    <h3>Dodaj mszę do harmonogramu</h3>
+    <input type="date" name="data" required>
+    <input type="time" name="godzina" required>
+    <select name="typ_mszy" required>
+      {% for mt in mass_types %}
+      <option value="{{ mt[0] }}">{{ mt[0] }} ({{ mt[1] }} pkt)</option>
+      {% endfor %}
+    </select>
+    <textarea name="uwagi" placeholder="Uwagi (opcjonalnie)"></textarea>
+    <button type="submit">Dodaj do harmonogramu</button>
+  </form>
+
+  <h3>Msze w harmonogramie</h3>
+  <table>
+    <tr>
+      <th>Data</th>
+      <th>Godzina</th>
+      <th>Typ mszy</th>
+      <th>Uwagi</th>
+      <th>Akcje</th>
+    </tr>
+    {% if schedule_list %}
+      {% for schedule in schedule_list %}
+      <tr>
+        <td>{{ schedule[1] }}</td>
+        <td>{{ schedule[2] }}</td>
+        <td>{{ schedule[3] }}</td>
+        <td>{{ schedule[4] or '-' }}</td>
+        <td>
+          <a href="{{ url_for('edit_mass_schedule', schedule_id=schedule[0]) }}" class="btn">Edytuj</a>
+          <a href="{{ url_for('delete_mass_schedule', schedule_id=schedule[0]) }}" class="btn btn-danger" onclick="return confirm('Usunąć tę mszę?')">Usuń</a>
+        </td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="5">Brak mszy w harmonogramie</td></tr>
+    {% endif %}
+  </table>
+</section>
+
+<section id="ogloszenia">
+  <h2>Ogłoszenia</h2>
+  <form method="POST" action="/add_announcement">
+    <h3>Dodaj nowe ogłoszenie</h3>
+    <input type="text" name="tytul" placeholder="Tytuł" required>
+    <textarea name="tresc" placeholder="Treść" required></textarea>
+    <label>
+      Priorytet:
+      <select name="priorytet">
+        <option value="0">Normalny</option>
+        <option value="1">Ważne</option>
+      </select>
+    </label>
+    <button type="submit">Dodaj ogłoszenie</button>
+  </form>
+  
+  <div class="announcements-list">
+    <h3>Lista ogłoszeń</h3>
+    {% for o in announcements %}
+    <div class="announcement {% if o[5] > 0 %}priority{% endif %}">
+      <div class="announcement-header">
+        <h4>{{ o[1] }}</h4>
+        <div class="announcement-actions">
+          <span class="date">{{ o[3] }}</span>
+          <a href="{{ url_for('delete_announcement', announcement_id=o[0]) }}" 
+             onclick="return confirm('Usunąć to ogłoszenie?');"
+             class="btn btn-danger">Usuń</a>
+        </div>
+      </div>
+      <p>{{ o[2] }}</p>
+      <div class="announcement-footer">
+        <small>Autor: {{ o[4] }}</small>
+        {% if o[5] > 0 %}
+        <span class="priority-badge">WAŻNE</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+
+<section id="historia">
+  <h2>Historia punktów</h2>
+  <p class="section-description">Pełna historia zdobywania punktów przez wszystkich ministrantów</p>
+  
+  <table>
+    <tr>
+      <th>Użytkownik</th>
+      <th>Punkty</th>
+      <th>Data</th>
+      <th>Typ mszy</th>
+      <th>Status</th>
+      <th>Akcje</th>
+    </tr>
+    {% if records %}
+      {% for r in records %}
+      <tr>
+        <td><strong>{{ r[1] }}</strong></td>
+        <td class="points-cell">{{ r[3] }}</td>
+        <td>{{ r[2] }}</td>
+        <td>{{ r[4] }}</td>
+        <td>
+          <span class="status-badge status-{{ r[6] }}">
+            {% if r[6] == 'pending' %}Oczekujące
+            {% elif r[6] == 'approved' %}Zaakceptowane
+            {% elif r[6] == 'rejected' %}Odrzucone
+            {% else %}{{ r[6] }}{% endif %}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr><td colspan="5" style="text-align: center; padding: 20px;">Brak historii punktów</td></tr>
+    {% endif %}
+  </table>
+</section>
+<section id="wiadomosci">
+  <h2>Rozmowy od ministrantów</h2>
+  <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+    <div class="conversations-list">
+      <h3>Rozmowy do mnie</h3>
+      <div id="convList"></div>
+    </div>
+    <div class="chat-window">
+      <div id="noConvSelected" style="text-align:center; padding:20px; color:#ffffff; font-size:18px; font-weight:700; text-shadow: 0 1px 3px rgba(0,0,0,0.5); background:#2a2a2a; border-radius:8px; border:1px solid #444;">
+        Wybierz rozmowę aby wyświetlić czat
+      </div>
+      <div id="chatBox" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 id="chatTitle" style="margin:0;"></h3>
+          <button id="closeBtn" onclick="closeConv()" class="btn btn-danger" style="padding:8px 14px; font-size:12px;">Zamknij</button>
+        </div>
+        <div id="messages"></div>
+        <form onsubmit="sendMsg(event)" style="display:flex; gap:12px; align-items:flex-end;">
+          <textarea id="msgInput" placeholder="Wpisz wiadomość..." required></textarea>
+          <button type="submit" class="btn" style="padding:5px 10px; font-size:11px; white-space:nowrap; height:fit-content; flex-shrink:0;">Wyślij</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="raporty">
+  <h2>Raporty zaawansowane</h2>
+  <div class="reports-menu">
+    <a href="/reports?type=monthly" class="btn">Raport miesięczny</a>
+    <a href="/reports?type=user_ranking" class="btn">Ranking użytkowników</a>
+    <a href="/reports?type=weekly_stats" class="btn">Statystyki tygodniowe</a>
+  </div>
+</section>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script>
+// Poprawiona nawigacja między sekcjami
+document.addEventListener("DOMContentLoaded", function() {
+    // Ukryj wszystkie sekcje na początku
+    document.querySelectorAll("section").forEach(sec => {
+        sec.style.display = "none";
+    });
+    
+    // Pokaż pierwszą sekcję lub zapisaną w sessionStorage
+    const activeSection = sessionStorage.getItem('activeSection') || 'obecnosci';
+    const targetSection = document.getElementById(activeSection);
+    if (targetSection) {
+        targetSection.style.display = "block";
+    } else {
+        const firstSection = document.querySelector("section");
+        if (firstSection) {
+            firstSection.style.display = "block";
+        }
+    }
+});
+
+// Obsługa kliknięcia w linki nawigacyjne
+document.querySelectorAll("nav a").forEach(link => {
+    link.addEventListener("click", function(e) {
+        e.preventDefault();
+        const targetId = this.getAttribute("href").substring(1);
+        
+        // Ukryj wszystkie sekcje
+        document.querySelectorAll("section").forEach(sec => {
+            sec.style.display = "none";
+        });
+        
+        // Pokaż wybraną sekcję
+        const targetSection = document.getElementById(targetId);
+        if (targetSection) {
+            targetSection.style.display = "block";
+            sessionStorage.setItem('activeSection', targetId);
+        }
+    });
+});
+
+// Ładuj statystyki użytkowników (bez bezpośrednich Jinja pętli w JS)
+const usersList = JSON.parse(document.getElementById('users-data').textContent || '[]');
+usersList.forEach(function(user) {
+  const encoded = encodeURIComponent(user);
+  fetch('/api/user_stats/' + encoded)
+    .then(response => response.json())
+    .then(data => {
+      const idUser = user.replace(/ /g, '_');
+      const totalEl = document.getElementById('total-' + idUser);
+      const monthlyEl = document.getElementById('monthly-' + idUser);
+      if (totalEl) totalEl.textContent = data.total;
+      if (monthlyEl) monthlyEl.textContent = data.monthly;
+    })
+    .catch(error => {
+      console.error('Error loading stats for', user, error);
+    });
+});
+
+function showUserDetails(username) {
+  const encoded = encodeURIComponent(username);
+  fetch('/api/user_stats/' + encoded)
+    .then(response => response.json())
+    .then(data => {
+      alert('Szczegółowe statystyki dla: ' + username + '\n\n' +
+            'Łączna suma punktów: ' + data.total + '\n' +
+            'Punkty w tym miesiącu: ' + data.monthly + '\n' +
+            'Liczba obecności w miesiącu: ' + data.count_monthly + '\n' +
+            'Ranking: ' + data.rank + ' z ' + data.total_users);
+    })
+    .catch(err => {
+      console.error('Error fetching details for', username, err);
+    });
+}
+
+// Zmiana hasła
+function toggleChangePassword() {
+  const modal = document.getElementById('changePasswordModal');
+  modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+}
+
+document.getElementById('changePasswordForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  
+  fetch('/change_my_password', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    const messageDiv = document.getElementById('passwordMessage');
+    messageDiv.innerHTML = data.message;
+    messageDiv.className = data.success ? 'success' : 'error';
+    
+    if (data.success) {
+      this.reset();
+      setTimeout(() => {
+        toggleChangePassword();
+        messageDiv.innerHTML = '';
+      }, 2000);
+    }
+  });
+});
+</script>
+<script id="users-data" type="application/json">{{ users|tojson|safe }}</script>
+</body>
+</html>
+<script>
+</script>
+<script>
+let currentConv = null;
+
+async function loadConversations() {
+  const res = await fetch('/get_conversations');
+  const convs = await res.json();
+  const list = document.getElementById('convList');
+  list.innerHTML = convs.map(c => `
+    <div class="conv-item" onclick="openConv(${c.id}, '${c.ministrant}', '${c.status}')" style="padding:10px; cursor:pointer; border:1px solid #ddd; margin:5px 0; border-radius:5px; background:${c.status=='closed'?'#f0f0f0':'#fff'}; font-weight:${currentConv==c.id?'bold':'normal'}">
+      <strong>${c.ministrant}</strong><br/>
+      <small>${c.status=='closed'?'ZAMKNIĘTA':'Otwarta'}</small>
+    </div>
+  `).join('') || '<p>Brak rozmów</p>';
+}
+
+async function openConv(id, min, status) {
+  currentConv = {id, status};
+  document.getElementById('noConvSelected').style.display = 'none';
+  document.getElementById('chatBox').style.display = 'block';
+  document.getElementById('chatTitle').innerHTML = 'Rozmowa z ' + min + (status=='closed'?' (ZAMKNIĘTA)':'');
+  await loadMessages();
+}
+
+async function loadMessages() {
+  if(!currentConv) return;
+  const res = await fetch('/get_conversation/' + currentConv.id);
+  const msgs = await res.json();
+  const box = document.getElementById('messages');
+  box.innerHTML = msgs.map(m => `
+    <div style="margin:5px 0; padding:8px; background:#f5f5f5; border-radius:3px;">
+      <strong>${m.nadawca}:</strong> ${m.tresc}<br/>
+      <small>${m.data}</small>
+      <button onclick="deleteMsg(${m.id})" style="margin-left:10px; padding:2px 5px; font-size:11px;">Usuń</button>
+    </div>
+  `).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMsg(e) {
+  e.preventDefault();
+  if(!currentConv) return;
+  const text = document.getElementById('msgInput').value;
+  if(!text) return;
+  const fd = new FormData();
+  fd.append('conversation_id', currentConv.id);
+  fd.append('tresc', text);
+  const res = await fetch('/send_message', {method:'POST', body:fd});
+  const data = await res.json();
+  if(data.success) {
+    document.getElementById('msgInput').value = '';
+    await loadMessages();
+  }
+}
+
+async function deleteMsg(id) {
+  if(confirm('Usunąć wiadomość?')) {
+    const res = await fetch('/delete_message/'+id, {method:'POST'});
+    if(res.ok) await loadMessages();
+  }
+}
+
+async function closeConv() {
+  if(confirm('Zamknąć rozmowę?')) {
+    const res = await fetch('/close_conversation/'+currentConv.id, {method:'POST'});
+    const data = await res.json();
+    if(data.success) {
+      currentConv.status = 'closed';
+      await loadConversations();
+      await loadMessages();
+    }
+  }
+}
+
+if(document.getElementById('convList')) {
+  loadConversations();
+  setInterval(loadConversations, 10000);
+}
+</script>

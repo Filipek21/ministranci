@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Raporty</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1>Raporty Systemu</h1>
+  <div class="user-info">
+    <span>Zalogowany jako: {{ session.user }}</span>
+    <a href="/dashboard" class="btn">Powrót do panelu</a>
+    <a href="/logout" class="logout-btn">Wyloguj</a>
+  </div>
+</header>
+
+<nav>
+  <a href="#monthly">Raport miesięczny</a>
+  <a href="#ranking">Ranking użytkowników</a>
+  <a href="#weekly">Statystyki tygodniowe</a>
+</nav>
+
+<section id="monthly">
+  <h2>Raport Miesięczny</h2>
+  
+  <div class="report-info">
+    <p>Ten raport pokazuje sumę punktów i liczbę obecności dla każdego użytkownika w poszczególnych miesiącach.</p>
+  </div>
+
+  {% if report_type == 'monthly' %}
+  <table>
+    <tr>
+      <th>Miesiąc</th>
+      <th>Użytkownik</th>
+      <th>Suma punktów</th>
+      <th>Liczba obecności</th>
+      <th>Średnia punktów</th>
+    </tr>
+    {% for row in report_data %}
+    <tr>
+      <td>{{ row[0] }}</td>
+      <td>{{ row[1] }}</td>
+      <td>{{ row[2] }}</td>
+      <td>{{ row[3] }}</td>
+      <td>{{ "%.2f"|format(row[2] / row[3] if row[3] > 0 else 0) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>Wybierz "Raport miesięczny" z menu nawigacji aby zobaczyć dane.</p>
+  {% endif %}
+</section>
+
+<section id="ranking">
+  <h2>Ranking Użytkowników</h2>
+  
+  <div class="report-info">
+    <p>Ranking wszystkich użytkowników według łącznej liczby punktów.</p>
+  </div>
+
+  {% if report_type == 'user_ranking' %}
+  <table>
+    <tr>
+      <th>Miejsce</th>
+      <th>Użytkownik</th>
+      <th>Suma punktów</th>
+      <th>Liczba obecności</th>
+      <th>Średnia punktów</th>
+    </tr>
+    {% for row in report_data %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ row[0] }}</td>
+      <td>{{ row[1] }}</td>
+      <td>{{ row[2] }}</td>
+      <td>{{ "%.2f"|format(row[3]) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>Wybierz "Ranking użytkowników" z menu nawigacji aby zobaczyć dane.</p>
+  {% endif %}
+</section>
+
+<section id="weekly">
+  <h2>Statystyki Tygodniowe</h2>
+  
+  <div class="report-info">
+    <p>Statystyki tygodniowe pokazujące aktywność użytkowników w poszczególnych tygodniach.</p>
+  </div>
+
+  {% if report_type == 'weekly_stats' %}
+  <table>
+    <tr>
+      <th>Tydzień</th>
+      <th>Użytkownik</th>
+      <th>Suma punktów</th>
+      <th>Liczba obecności</th>
+    </tr>
+    {% for row in report_data %}
+    <tr>
+      <td>{{ row[0] }}</td>
+      <td>{{ row[1] }}</td>
+      <td>{{ row[2] }}</td>
+      <td>{{ row[3] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>Wybierz "Statystyki tygodniowe" z menu nawigacji aby zobaczyć dane.</p>
+  {% endif %}
+</section>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll("section").forEach(sec => sec.style.display = "none");
+    const type = '{{ report_type }}';
+    if (type === 'monthly') document.getElementById('monthly').style.display = 'block';
+    else if (type === 'user_ranking') document.getElementById('ranking').style.display = 'block';
+    else if (type === 'weekly_stats') document.getElementById('weekly').style.display = 'block';
+    else document.getElementById('monthly').style.display = 'block';
+});
+
+document.querySelectorAll("nav a").forEach(link => {
+    link.addEventListener("click", function(e) {
+        e.preventDefault();
+        const id = this.getAttribute("href").substring(1);
+        let type = 'monthly';
+        if (id === 'ranking') type = 'user_ranking';
+        else if (id === 'weekly') type = 'weekly_stats';
+        window.location.href = '/reports?type=' + type;
+    });
+});
+</script>
+</body>
+</html>

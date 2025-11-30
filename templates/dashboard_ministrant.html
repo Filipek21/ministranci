@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Panel Ministranta</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1>Panel Ministranta: {{ user }}</h1>
+  <div class="user-menu">
+    <button onclick="toggleChangePassword()">Zmiana hasła</button>
+    <a href="/logout" class="logout-btn">Wyloguj</a>
+  </div>
+</header>
+
+<nav>
+  <a href="#punkty">Moje punkty</a>
+  <a href="#harmonogram">Dzisiejsze msze</a>
+  <a href="#statystyki">Statystyki</a>
+  <a href="#ogloszenia">Ogłoszenia</a>
+  <a href="#wiadomosci">Wiadomości</a>
+</nav>
+
+<!-- Modal zmiany hasła -->
+<div id="changePasswordModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="toggleChangePassword()">&times;</span>
+    <h3>Zmiana hasła</h3>
+    <form id="changePasswordForm">
+      <input type="password" name="current_password" placeholder="Obecne hasło" required>
+      <input type="password" name="new_password" placeholder="Nowe hasło" required>
+      <button type="submit">Zmień hasło</button>
+    </form>
+    <div id="passwordMessage"></div>
+  </div>
+</div>
+
+<section id="punkty">
+  <h2>Moje punkty</h2>
+  
+  <div class="season-info">
+    <h3>Aktualny sezon punktów</h3>
+    {% if current_season %}
+    <div class="season-card">
+      <p><strong>{{ current_season[1] }}</strong></p>
+      <p>Od: {{ current_season[2] }} Do: {{ current_season[3] }}</p>
+    </div>
+    {% else %}
+    <p>Brak aktywnego sezonu punktów.</p>
+    {% endif %}
+  </div>
+  
+  <div class="attendance-card">
+    <h3>Zaznacz obecność na mszy</h3>
+    <form method="POST">
+      <label>Wybierz mszę z harmonogramu:</label>
+      <select name="mass_schedule_id" required>
+        <option value="">-- Wybierz mszę --</option>
+        {% if available_masses %}
+          {% for mass in available_masses %}
+          <option value="{{ mass[0] | string }}">{{ mass[1] }} o {{ mass[2] }} - {{ mass[3] }}</option>
+          {% endfor %}
+        {% else %}
+          <option value="1">Brak dostępnych mszy (ID: 1)</option>
+        {% endif %}
+      </select>
+      <label>Uwagi (opcjonalnie):</label>
+      <textarea name="uwagi" placeholder="Dodatkowe uwagi..."></textarea>
+      <button type="submit">Zaznacz obecność</button>
+    </form>
+    <div class="points-info">
+      <p><strong>Informacja o punktach:</strong></p>
+      <ul>
+        <li>Za pierwszą mszę w tygodniu (od poniedziałku do soboty) otrzymujesz <strong>1 punkt</strong></li>
+        <li>Za drugą i każdą kolejną mszę w tygodniu otrzymujesz <strong>2 punkty</strong></li>
+        <li>Wszystkie punkty wymagają akceptacji przez księdza lub admina</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="filters">
+    <h3>Filtruj historię</h3>
+    <form method="GET">
+      <label>Tydzień od:</label>
+      <input type="date" name="week_start">
+      <label>Miesiąc:</label>
+      <input type="month" name="month">
+      <button type="submit">Filtruj</button>
+      <a href="?">Wyczyść filtry</a>
+    </form>
+  </div>
+
+  <div class="stats-summary">
+    <p><strong>Łączna suma punktów: {{ stats.total }}</strong></p>
+    <p>Punkty w tym miesiącu: {{ stats.monthly }} ({{ stats.count_monthly }} obecności)</p>
+    {% if stats.rank %}
+    <p>Twoje miejsce w rankingu: {{ stats.rank }} z {{ stats.total_users }}</p>
+    {% endif %}
+  </div>
+
+  <table>
+    <tr>
+      <th>Data</th>
+      <th>Punkty</th>
+      <th>Typ mszy</th>
+      <th>Uwagi</th>
+      <th>Status</th>
+      <th>Dzień tygodnia</th>
+    </tr>
+    {% for r in records %}
+    <tr class="points-{{ r[1] }} status-{{ r[4] }}">
+      <td>{{ r[0] }}</td>
+      <td>{{ r[1] }}</td>
+      <td class="mass-type-{{ r[2] }}">{{ r[2] }}</td>
+      <td>{{ r[3] or '-' }}</td>
+      <td>
+        <span class="status-badge status-{{ r[4] }}">
+          {% if r[4] == 'pending' %}Oczekujące
+          {% elif r[4] == 'approved' %}Zaakceptowane
+          {% elif r[4] == 'rejected' %}Odrzucone
+          {% else %}{{ r[4] }}{% endif %}
+        </span>
+      </td>
+      <td>
+        {% set day_num = r[0].strftime('%w') %}
+        {% if day_num == '0' %}Niedziela
+        {% elif day_num == '1' %}Poniedziałek
+        {% elif day_num == '2' %}Wtorek
+        {% elif day_num == '3' %}Środa
+        {% elif day_num == '4' %}Czwartek
+        {% elif day_num == '5' %}Piątek
+        {% elif day_num == '6' %}Sobota
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section id="harmonogram">
+  <h2>Dzisiejsze msze</h2>
+  {% if todays_masses %}
+    <div class="mass-schedule">
+      {% for mass in todays_masses %}
+      <div class="mass-item">
+        <h4>Godzina: {{ mass[0] }}</h4>
+        <p>Typ: {{ mass[1] }}</p>
+        <p>{{ mass[2] or 'Brak uwag' }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>Brak zaplanowanych mszy na dziś.</p>
+  {% endif %}
+</section>
+
+<section id="statystyki">
+  <h2>Moje statystyki</h2>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h3>Łącznie</h3>
+      <p class="stat-number">{{ stats.total }}</p>
+      <p>punktów</p>
+    </div>
+    <div class="stat-card">
+      <h3>Ten miesiąc</h3>
+      <p class="stat-number">{{ stats.monthly }}</p>
+      <p>punktów</p>
+    </div>
+    <div class="stat-card">
+      <h3>Obecności</h3>
+      <p class="stat-number">{{ stats.count_monthly }}</p>
+      <p>w tym miesiącu</p>
+    </div>
+    <div class="stat-card">
+      <h3>Ranking</h3>
+      <p class="stat-number">{{ stats.rank or '-' }}</p>
+      <p>miejsce</p>
+    </div>
+  </div>
+</section>
+
+<section id="ogloszenia">
+  <h2>Ogłoszenia</h2>
+  <div class="announcements-container">
+    {% for o in announcements %}
+    <div class="announcement {% if o[5] > 0 %}priority{% endif %}">
+      <div class="announcement-header">
+        <h3>{{ o[1] }}</h3>
+        <span class="announcement-date">{{ o[3] }}</span>
+      </div>
+      <p>{{ o[2] }}</p>
+      <div class="announcement-footer">
+        <small>Autor: {{ o[4] }}</small>
+        {% if o[5] > 0 %}
+        <span class="priority-badge">WAŻNE</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="wiadomosci">
+  <h2>💬 Rozmowy - Czat z księdzem/administratorem</h2>
+  <div style="display:grid; grid-template-columns: 300px 1fr; gap: 20px; height:calc(100vh - 200px);">
+    <div class="conversations-list" style="background:#2a2a2a; padding:15px; border-radius:8px; overflow-y:auto; border:1px solid #444; min-height:0;">
+      <h3 style="margin-top:0; color:#2196F3; font-size:16px;">📬 Nowa rozmowa</h3>
+      <form onsubmit="startConv(event)" style="margin-bottom:20px; padding-bottom:15px; border-bottom:1px solid #555;">
+        <label style="color:#fff; font-weight:600; font-size:13px;">Wybierz odborcę:</label>
+        <select id="odbiorcy" required style="width:100%; padding:8px; background:#1a1a1a; color:#fff; border:1px solid #555; border-radius:4px; margin:8px 0; font-size:13px;">
+          <option value="">-- Wybierz --</option>
+          {% for u in all_users %}
+            {% if u[1] in ['ksiez', 'admin'] %}
+            <option value="{{ u[0] }}">{{ u[0] }} ({{ u[1] }})</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <button type="submit" style="width:100%; padding:10px; background:#4CAF50; color:#fff; border:none; border-radius:4px; font-weight:600; cursor:pointer; font-size:13px;">➕ Nowa rozmowa</button>
+      </form>
+      <h3 style="margin:0 0 10px 0; color:#2196F3; font-size:16px;">📋 Rozmowy</h3>
+      <div id="convList" style="display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+    <div class="chat-window" style="background:#2a2a2a; border-radius:8px; border:1px solid #444; display:flex; flex-direction:column; min-height:0;">
+      <div id="noConvSelected" style="flex:1; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; color:#aaa; font-size:16px;">
+        ← Zacznij lub wybierz rozmowę
+      </div>
+      <div id="chatBox" style="display:none; flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div style="background:#1a1a1a; padding:15px; border-bottom:1px solid #444;">
+          <h3 id="chatTitle" style="margin:0; color:#2196F3; font-size:18px;"></h3>
+        </div>
+        <div id="messages" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:10px; min-height:0;"></div>
+        <form onsubmit="sendMsg(event)" style="background:#1a1a1a; padding:15px; border-top:1px solid #444; display:flex; flex-direction:column; gap:10px; flex-shrink:0;">
+          <textarea id="msgInput" placeholder="💭 Wpisz wiadomość... (Enter+Ctrl aby wysłać)" required style="width:100%; min-height:150px; padding:12px; background:#2a2a2a; color:#fff; border:1px solid #555; border-radius:4px; resize:vertical; font-size:14px; font-family:Arial,sans-serif; box-sizing:border-box;"></textarea>
+          <button type="submit" class="btn" style="align-self:flex-end; padding:10px 20px; font-size:13px; background:#4CAF50; color:#fff; font-weight:600; border:none; border-radius:4px; cursor:pointer;">📤 Wyślij wiadomość</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="kary">
+  <h2>Moje kary</h2>
+  <div id="myPenalties" style="display:grid; gap:15px;">
+    <p style="color:#b0b0b0;">Brak kar</p>
+  </div>
+</section>
+
+<script>
+// Poprawiona nawigacja między sekcjami
+document.addEventListener("DOMContentLoaded", function() {
+    // Ukryj wszystkie sekcje na początku
+    document.querySelectorAll("section").forEach(sec => {
+        sec.style.display = "none";
+    });
+    
+    // Pokaż pierwszą sekcję lub zapisaną w sessionStorage
+    const activeSection = sessionStorage.getItem('activeSection') || 'punkty';
+    const targetSection = document.getElementById(activeSection);
+    if (targetSection) {
+        targetSection.style.display = "block";
+    } else {
+        const firstSection = document.querySelector("section");
+        if (firstSection) {
+            firstSection.style.display = "block";
+        }
+    }
+});
+
+// Obsługa kliknięcia w linki nawigacyjne
+document.querySelectorAll("nav a").forEach(link => {
+    link.addEventListener("click", function(e) {
+        e.preventDefault();
+        const targetId = this.getAttribute("href").substring(1);
+        
+        // Ukryj wszystkie sekcje
+        document.querySelectorAll("section").forEach(sec => {
+            sec.style.display = "none";
+        });
+        
+        // Pokaż wybraną sekcję
+        const targetSection = document.getElementById(targetId);
+        if (targetSection) {
+            targetSection.style.display = "block";
+            sessionStorage.setItem('activeSection', targetId);
+        }
+    });
+});
+
+function toggleChangePassword() {
+  const modal = document.getElementById('changePasswordModal');
+  modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+}
+
+document.getElementById('changePasswordForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  
+  fetch('/change_my_password', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    const messageDiv = document.getElementById('passwordMessage');
+    messageDiv.innerHTML = data.message;
+    messageDiv.className = data.success ? 'success' : 'error';
+    
+    if (data.success) {
+      setTimeout(() => {
+        toggleChangePassword();
+        messageDiv.innerHTML = '';
+      }, 2000);
+    }
+  });
+});
+</script>
+</body>
+</html>
+
+<script>
+let currentConv = null;
+
+async function startConv(e) {
+  e.preventDefault();
+  const odbiorcy = document.getElementById('odbiorcy').value;
+  const fd = new FormData();
+  fd.append('odbiorca', odbiorcy);
+  const res = await fetch('/start_conversation', {method:'POST', body:fd});
+  const data = await res.json();
+  if(data.success) {
+    currentConv = data.conversation_id;
+    await loadConversations();
+    document.getElementById('odbiorcy').value = '';
+  } else {
+    alert(data.error || 'Nie można rozpocząć rozmowy');
+  }
+}
+
+async function loadConversations() {
+  const res = await fetch('/get_conversations');
+  const convs = await res.json();
+  const list = document.getElementById('convList');
+  list.innerHTML = convs.map(c => `
+    <div class="conv-item" onclick="openConv(${c.id}, '${c.odbiorca}', '${c.status}')" style="padding:10px; cursor:pointer; border:1px solid #ddd; margin:5px 0; border-radius:5px; background:${c.status=='closed'?'#f0f0f0':'#fff'}; font-weight:${currentConv==c.id?'bold':'normal'}">
+      <strong>→ ${c.odbiorca}</strong><br/>
+      <small>${c.status=='closed'?'ZAMKNIĘTA':'Otwarta'}</small>
+    </div>
+  `).join('') || '<p>Brak rozmów</p>';
+}
+
+async function openConv(id, odbiorcy, status) {
+  currentConv = id;
+  document.getElementById('noConvSelected').style.display = 'none';
+  document.getElementById('chatBox').style.display = 'block';
+  document.getElementById('chatTitle').innerHTML = 'Rozmowa z ' + odbiorcy + (status=='closed'?' (ZAMKNIĘTA)':'');
+  await loadMessages();
+}
+
+async function loadMessages() {
+  if(!currentConv) return;
+  const res = await fetch('/get_conversation/' + currentConv);
+  const msgs = await res.json();
+  const box = document.getElementById('messages');
+  box.innerHTML = msgs.map(m => `
+    <div style="margin:5px 0; padding:8px; background:#f5f5f5; border-radius:3px;">
+      <strong>${m.nadawca}:</strong> ${m.tresc}<br/>
+      <small>${m.data}</small>
+    </div>
+  `).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMsg(e) {
+  e.preventDefault();
+  if(!currentConv) return;
+  const text = document.getElementById('msgInput').value;
+  if(!text) return;
+  const fd = new FormData();
+  fd.append('conversation_id', currentConv);
+  fd.append('tresc', text);
+  const res = await fetch('/send_message', {method:'POST', body:fd});
+  const data = await res.json();
+  if(data.success) {
+    document.getElementById('msgInput').value = '';
+    await loadMessages();
+  }
+}
+
+loadConversations();
+setInterval(loadConversations, 10000);
+</script>

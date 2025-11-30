@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Edytuj mszę</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1>Edytuj mszę</h1>
+  <div class="user-info">
+    <a href="/dashboard" class="btn">Powrót</a>
+    <a href="/logout" class="logout-btn">Wyloguj</a>
+  </div>
+</header>
+
+<div style="max-width: 500px; margin: 40px auto;">
+  <form method="POST">
+    <label>Data:</label>
+    <input type="date" name="data" value="{{ schedule[1] }}" required>
+    
+    <label>Godzina:</label>
+    <input type="time" name="godzina" value="{{ schedule[2] }}" required>
+    
+    <label>Typ mszy:</label>
+    <select name="typ_mszy" required>
+      {% for mt in mass_types %}
+      <option value="{{ mt[0] }}" {% if mt[0] == schedule[3] %}selected{% endif %}>{{ mt[0] }} ({{ mt[1] }} pkt)</option>
+      {% endfor %}
+    </select>
+    
+    <label>Uwagi:</label>
+    <textarea name="uwagi">{{ schedule[4] or '' }}</textarea>
+    
+    <button type="submit">Zapisz zmiany</button>
+  </form>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Edytuj punkty</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1>Edytuj punkty - {{ points[1] }}</h1>
+  <div class="user-info">
+    <a href="/dashboard" class="btn">Powrót</a>
+    <a href="/logout" class="logout-btn">Wyloguj</a>
+  </div>
+</header>
+
+<div style="max-width: 500px; margin: 40px auto;">
+  <form method="POST">
+    <label>Data:</label>
+    <input type="text" value="{{ points[2] }}" disabled>
+    
+    <label>Użytkownik:</label>
+    <input type="text" value="{{ points[1] }}" disabled>
+    
+    <label>Punkty:</label>
+    <input type="number" name="punkty" value="{{ points[3] }}" min="1" required>
+    
+    <label>Typ mszy:</label>
+    <select name="typ_mszy" required>
+      {% for mt in mass_types %}
+      <option value="{{ mt[1] }}" {% if mt[1] == points[4] %}selected{% endif %}>{{ mt[1] }} ({{ mt[2] }} pkt)</option>
+      {% endfor %}
+    </select>
+    
+    <label>Uwagi:</label>
+    <textarea name="uwagi">{{ points[5] or '' }}</textarea>
+    
+    <button type="submit">Zapisz zmiany</button>
+  </form>
+</div>
+
+</body>
+</html>
