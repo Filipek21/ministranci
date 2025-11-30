@@ -169,6 +169,37 @@ def init_db():
 
 init_db()
 
+# -------------------- Dodanie domyślnego konta admina --------------------
+def ensure_admin_exists():
+    """Sprawdza i tworzy domyślne konto administratora, jeśli nie istnieje."""
+    admin_user = 'admin'
+    # WAŻNE: Zmień 'adminpass123' na bezpieczne, losowe hasło w środowisku produkcyjnym!
+    admin_pass = 'adminpass123' 
+    
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    # Sprawdź, czy administrator już istnieje
+    c.execute("SELECT id FROM users WHERE username=?", (admin_user,))
+    if c.fetchone() is None:
+        # Haszowanie hasła przy użyciu funkcji z werkzeug.security
+        hashed_password = generate_password_hash(admin_pass)
+        
+        # Wstawienie konta admina (rola: 'admin', is_active: 1)
+        try:
+            c.execute("INSERT INTO users (username, password, role, created_date, is_active) VALUES (?, ?, 'admin', ?, 1)",
+                     (admin_user, hashed_password, datetime.today().date()))
+            conn.commit()
+            # Informacja dla użytkownika, widoczna w konsoli przy pierwszym uruchomieniu:
+            print(f"Utworzono domyślne konto administratora: Użytkownik: {admin_user}, Hasło: {admin_pass}")
+        except sqlite3.IntegrityError:
+            pass # Pomiń, jeśli inny proces dodał użytkownika w międzyczasie
+    
+    conn.close()
+
+# Wywołaj funkcję po inicjalizacji bazy danych
+ensure_admin_exists()
+
 # -------------------- Funkcje pomocnicze --------------------
 def start_of_week(d):
     return d - timedelta(days=d.weekday())
@@ -2293,3 +2324,4 @@ def delete_all_schedules():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
+
