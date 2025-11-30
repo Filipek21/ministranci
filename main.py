@@ -479,6 +479,16 @@ def dashboard():
     user = session['user']
     today = datetime.today().date().isoformat()
     
+    # Dodaj słownik z danymi dla szablonu
+    data = {
+        "user": user,
+        "role": role,
+        "today": today,
+        "current_season_id": 1  # <- dodaj domyślną wartość, aby Jinja2 nie wywalała błędu
+    }
+
+    return render_template("dashboard.html", some_dict=data)
+
     # ----------------- Ministrant -----------------
     if role == "ministrant":
         if request.method == "POST":
@@ -2324,4 +2334,5 @@ def delete_all_schedules():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
