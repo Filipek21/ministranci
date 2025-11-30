@@ -479,12 +479,15 @@ def dashboard():
     user = session['user']
     today = datetime.today().date().isoformat()
     
-    data = {
-        "user": user,
-        "role": role,
-        "today": today,
-        "current_season_id": 1  # lub pobierz z bazy
-    }
+data = {
+    "user": user,
+    "role": role,
+    "today": today,
+    "current_season_id": 1  # <- konieczne
+}
+
+return render_template(template, some_dict=data)
+
 
     # Wybierz szablon w zależności od roli
     if role == "ministrant":
@@ -495,8 +498,6 @@ def dashboard():
         template = "dashboard_admin.html"
     else:
         return "Nieznana rola", 403  # opcjonalnie obsłuż błąd
-    
-    return render_template(template, some_dict=data)
 
     # ----------------- Ministrant -----------------
     if role == "ministrant":
@@ -2343,6 +2344,7 @@ def delete_all_schedules():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 
 
