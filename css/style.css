@@ -1,0 +1,135 @@
+:root {
+    --bg: #0f1420;
+    --panel: #1a2233;
+    --accent: #4f8cff;
+    --accent-2: #ffd166;
+    --ok: #3ddc84;
+    --err: #ff5c5c;
+    --text: #eef1f8;
+    --text-dim: #9aa4bd;
+    --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+.container { max-width: 480px; margin: 0 auto; padding: 24px; }
+.container-wide { max-width: 960px; margin: 0 auto; padding: 24px; }
+
+h1, h2, h3 { font-weight: 700; }
+
+.card {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+
+.btn {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin: 6px 0;
+    transition: transform .1s;
+}
+.btn:active { transform: scale(0.97); }
+.btn-secondary { background: #2a3550; }
+.btn-danger { background: var(--err); }
+.btn-warn { background: var(--accent-2); color: #24211a; }
+.btn-block { display: block; }
+
+input[type=text], input[type=password], input[type=number], input[type=datetime-local], select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #2c3652;
+    background: #101627;
+    color: var(--text);
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+/* --- Klawiatura numeryczna PIN (Kiosk) --- */
+.pin-display {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 20px 0;
+}
+.pin-dot {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: transparent;
+}
+.pin-dot.filled { background: var(--accent); }
+
+.numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.numpad button {
+    font-size: 1.5rem;
+    padding: 20px 0;
+    border-radius: 12px;
+    border: none;
+    background: #232d47;
+    color: var(--text);
+    cursor: pointer;
+}
+.numpad button:active { background: var(--accent); }
+
+.profile-badge {
+    text-align: center;
+    padding: 20px;
+}
+.profile-badge .imie { font-size: 1.6rem; font-weight: 700; }
+.profile-badge .kod { color: var(--text-dim); }
+
+.status-msg { text-align: center; padding: 40px 20px; font-size: 1.3rem; }
+.status-msg.ok { color: var(--ok); }
+.status-msg.err { color: var(--err); }
+
+.big-counter { text-align: center; padding: 30px 0; }
+.big-counter .liczba { font-size: 3.5rem; font-weight: 800; color: var(--accent-2); }
+.big-counter .etykieta { color: var(--text-dim); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px; border-bottom: 1px solid #2a3550; }
+tr.podswietlone { background: rgba(79,140,255,0.18); }
+
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabs button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: #232d47;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+.tabs button.active { background: var(--accent); color: white; }
+
+.hidden { display: none !important; }
+
+.qr-video-wrap { position: relative; border-radius: var(--radius); overflow: hidden; }
+#qr-reader { width: 100%; }
+
+.top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; }
+.top-bar a { color: var(--text-dim); text-decoration: none; }
