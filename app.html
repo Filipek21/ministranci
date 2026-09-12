@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Ministranci — Panel</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+<body>
+
+<!-- LOGOWANIE -->
+<div id="widok-login" class="container">
+    <div class="card">
+        <h2 style="text-align:center">⛪ E-Ministranci</h2>
+        <input type="text" id="login-kod" placeholder="Kod (np. MIN-001)">
+        <input type="password" id="login-pin" placeholder="PIN (4 cyfry)" maxlength="4" inputmode="numeric">
+        <button class="btn" id="btn-zaloguj">Zaloguj się</button>
+        <div id="login-status" style="color:var(--err); text-align:center; margin-top:8px;"></div>
+    </div>
+</div>
+
+<!-- PANEL MINISTRANTA -->
+<div id="widok-ministrant" class="container hidden">
+    <div class="top-bar">
+        <h3 id="mm-imie"></h3>
+        <a href="#" id="btn-wyloguj">Wyloguj</a>
+    </div>
+    <div class="card big-counter">
+        <div class="liczba" id="mm-punkty">0</div>
+        <div class="etykieta">punktów w tym miesiącu</div>
+    </div>
+    <div class="card">
+        <h3>Historia (ten miesiąc)</h3>
+        <table id="mm-historia"><tbody></tbody></table>
+    </div>
+    <div class="card">
+        <h3>Ranking</h3>
+        <table id="mm-ranking"><tbody></tbody></table>
+    </div>
+    <div class="card">
+        <h3>Zmień PIN</h3>
+        <input type="password" id="pin-stary" placeholder="Obecny PIN" maxlength="4" inputmode="numeric">
+        <input type="password" id="pin-nowy" placeholder="Nowy PIN (4 cyfry)" maxlength="4" inputmode="numeric">
+        <button class="btn btn-secondary" id="btn-zmien-pin">Zapisz nowy PIN</button>
+        <div id="zmien-pin-status"></div>
+    </div>
+    <a href="#" id="btn-panel-admina" class="hidden">Przejdź do Panelu Administracyjnego →</a>
+</div>
+
+<!-- PANEL ADMINA / MODERATORA -->
+<div id="widok-admin" class="container-wide hidden">
+    <div class="top-bar">
+        <h3>Panel administracyjny</h3>
+        <div>
+            <a href="#" id="btn-admin-do-panelu-ministranta">Panel ministranta</a> ·
+            <a href="#" id="btn-admin-wyloguj">Wyloguj</a>
+        </div>
+    </div>
+    <div class="tabs">
+        <button class="active" data-tab="kalendarz">Kalendarz</button>
+        <button data-tab="ministranci">Ministranci</button>
+        <button data-tab="karty" id="tab-karty">Generator kart QR</button>
+        <button data-tab="bezpieczenstwo">Bezpieczeństwo</button>
+    </div>
+
+    <div id="tab-content-kalendarz" class="card">
+        <h3>Dodaj wydarzenie</h3>
+        <select id="nowe-typ">
+            <option value="msza">Msza Święta</option>
+            <option value="nabozenstwo">Nabożeństwo (stałe)</option>
+            <option value="zbiorka">Zbiórka</option>
+        </select>
+        <input type="text" id="nowe-nazwa" placeholder="Nazwa (np. Msza niedzielna 9:00)">
+        <input type="datetime-local" id="nowe-data">
+        <label>Okno: minut przed <input type="number" id="nowe-przed" value="15" style="width:80px;display:inline-block"></label>
+        <label>minut po <input type="number" id="nowe-po" value="5" style="width:80px;display:inline-block"></label>
+        <label><input type="checkbox" id="nowe-blok"> To jest część bloku połączonego (Nabożeństwo + Msza)</label>
+        <div id="blok-parowanie" class="hidden">
+            <p style="color:var(--text-dim)">Aby połączyć w blok: dodaj najpierw pierwsze wydarzenie, potem drugie — wybierz je tutaj do sparowania.</p>
+            <select id="blok-z-czym"></select>
+        </div>
+        <button class="btn" id="btn-dodaj-wydarzenie">Dodaj wydarzenie</button>
+        <div id="wydarzenie-status"></div>
+        <h3>Nadchodzące / ostatnie wydarzenia</h3>
+        <table id="tabela-kalendarz"><thead><tr><th>Nazwa</th><th>Typ</th><th>Data</th><th>Okno</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <div id="tab-content-ministranci" class="card hidden">
+        <h3>Dodaj ministranta</h3>
+        <input type="text" id="mi-imie" placeholder="Imię">
+        <input type="text" id="mi-nazwisko" placeholder="Nazwisko">
+        <input type="text" id="mi-kod" placeholder="Kod (np. MIN-014)">
+        <input type="text" id="mi-pin" placeholder="PIN (4 cyfry)" maxlength="4">
+        <button class="btn" id="btn-dodaj-ministranta">Dodaj</button>
+        <div id="ministrant-status"></div>
+        <h3>Ranking / lista</h3>
+        <table id="tabela-ministranci"><thead><tr><th>Kod</th><th>Imię i nazwisko</th><th>Punkty (miesiąc)</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <div id="tab-content-karty" class="card hidden">
+        <h3>Generator wizytówek (kod QR + PIN)</h3>
+        <p style="color:var(--text-dim)">Wygeneruje PDF z winietkami do wycięcia — wyłącznie kod QR (bez kodu kreskowego).</p>
+        <p><b>Uwaga:</b> PIN-y są hashowane w bazie i nie da się ich odczytać wstecznie — wpisz tu PIN-y, które właśnie nadałeś ministrantom podczas dodawania (zapisz je sobie osobno przy tworzeniu kont).</p>
+        <div id="karty-lista"></div>
+        <button class="btn btn-secondary" id="btn-dodaj-wiersz-karty">+ Dodaj wiersz</button>
+        <button class="btn" id="btn-generuj-pdf">Generuj PDF z kartami</button>
+    </div>
+
+    <div id="tab-content-bezpieczenstwo" class="card hidden">
+        <h3>Zablokowane kody (nieudane próby PIN-u)</h3>
+        <p style="color:var(--text-dim)">Blokada mija sama po 15 minutach — tu można odblokować ją ręcznie wcześniej.</p>
+        <table id="tabela-zablokowane"><thead><tr><th>Kod</th><th>Nieudane próby</th><th>Zablokowany do</th><th></th></tr></thead><tbody></tbody></table>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+            <input type="text" id="odblokuj-kod-input" placeholder="Kod do odblokowania">
+            <button class="btn" style="width:auto" id="btn-odblokuj-recznie">Odblokuj</button>
+        </div>
+        <div id="odblokuj-status"></div>
+
+        <h3 style="margin-top:24px;">Log korekt ręcznych</h3>
+        <p style="color:var(--text-dim)">Kto i kiedy poprawił punkty ministrantowi.</p>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button class="btn btn-secondary" style="width:auto" id="btn-eksport-log-csv">Eksportuj log do CSV</button>
+            <button class="btn btn-secondary" style="width:auto" id="btn-eksport-log-pdf">Eksportuj log do PDF</button>
+        </div>
+        <table id="tabela-log-korekt">
+            <thead><tr><th>Kiedy</th><th>Kto</th><th>Komu</th><th>Wydarzenie</th><th>Punkty przed → po</th></tr></thead>
+            <tbody></tbody>
+        </table>
+
+        <h3 style="margin-top:24px;">Raport miesięczny (PDF)</h3>
+        <p style="color:var(--text-dim)">Ranking i pełna historia obecności za wybrany miesiąc — nie tylko bieżący.</p>
+        <div style="display:flex; gap:8px;">
+            <select id="raport-miesiac">
+                <option value="1">Styczeń</option><option value="2">Luty</option><option value="3">Marzec</option>
+                <option value="4">Kwiecień</option><option value="5">Maj</option><option value="6">Czerwiec</option>
+                <option value="7">Lipiec</option><option value="8">Sierpień</option><option value="9">Wrzesień</option>
+                <option value="10">Październik</option><option value="11">Listopad</option><option value="12">Grudzień</option>
+            </select>
+            <input type="number" id="raport-rok" placeholder="Rok" style="width:100px;">
+            <button class="btn" style="width:auto" id="btn-generuj-raport">Generuj raport PDF</button>
+        </div>
+        <div id="raport-status"></div>
+
+        <h3 style="margin-top:24px;">Historia logowań (pełny log — nie tylko licznik blokad)</h3>
+        <p style="color:var(--text-dim)">Każda próba (udana i nieudana) weryfikacji kodu + PIN-u w całym systemie (Kiosk i PWA).</p>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <input type="text" id="historia-logowan-filtr" placeholder="Filtruj po kodzie (opcjonalnie)">
+            <button class="btn btn-secondary" style="width:auto" id="btn-odswiez-historie-logowan">Pokaż</button>
+        </div>
+        <table id="tabela-historia-logowan">
+            <thead><tr><th>Kiedy</th><th>Kod</th><th>Wynik</th><th>Powód</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

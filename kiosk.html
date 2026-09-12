@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Kiosk — E-Ministranci</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="container">
+
+    <!-- EKRAN 1: Oczekiwanie na skan (czytnik QR USB działa jako klawiatura) -->
+    <div id="ekran-czekanie" class="card">
+        <h2 style="text-align:center">📷 Zeskanuj kod QR</h2>
+        <p style="text-align:center; color:var(--text-dim)">Zbliż kartę ministranta do czytnika…</p>
+        <!-- Ukryty input łapiący wejście z czytnika USB (działa jak klawiatura) -->
+        <input type="text" id="skaner-input" autofocus style="opacity:0; position:absolute; top:-100px;">
+    </div>
+
+    <!-- EKRAN 2: Rozpoznano kod, prośba o PIN -->
+    <div id="ekran-pin" class="card hidden">
+        <div class="profile-badge">
+            <div class="imie" id="pin-imie"></div>
+            <div class="kod" id="pin-kod"></div>
+        </div>
+        <div class="pin-display" id="pin-kropki">
+            <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+        </div>
+        <div class="numpad">
+            <button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button>
+            <button data-n="4">4</button><button data-n="5">5</button><button data-n="6">6</button>
+            <button data-n="7">7</button><button data-n="8">8</button><button data-n="9">9</button>
+            <button id="btn-wyczysc">⌫</button><button data-n="0">0</button><button id="btn-ok">✓</button>
+        </div>
+        <button class="btn btn-warn hidden" id="btn-tryb-admin">🔑 Zaloguj się jako Admin</button>
+        <button class="btn btn-secondary" id="btn-to-nie-ja">To nie ja — reset</button>
+    </div>
+
+    <!-- EKRAN 3: Wybór dla wydarzenia połączonego (blok) -->
+    <div id="ekran-blok" class="card hidden">
+        <h3 style="text-align:center">Wybierz, w czym uczestniczyłeś:</h3>
+        <button class="btn" id="btn-tylko-nabozenstwo">Tylko Nabożeństwo (+1 pkt)</button>
+        <button class="btn" id="btn-tylko-msza">Tylko Msza</button>
+        <button class="btn btn-warn" id="btn-oba">Oba</button>
+        <button class="btn btn-secondary" id="btn-to-nie-ja-2">Anuluj</button>
+    </div>
+
+    <!-- EKRAN 4: Wynik -->
+    <div id="ekran-wynik" class="card hidden">
+        <div class="status-msg" id="wynik-tresc"></div>
+        <button class="btn" id="btn-dalej">Dalej (nowy skan)</button>
+    </div>
+
+    <!-- PANEL AWARYJNY ADMINA -->
+    <div id="ekran-admin-awaryjny" class="card hidden">
+        <div class="top-bar">
+            <h3>Panel awaryjny</h3>
+            <button class="btn btn-secondary" style="width:auto" id="btn-wyjdz-admin">Wyjdź</button>
+        </div>
+        <p>Ręczne zaznaczenie obecności (np. zgubiona karta):</p>
+        <input type="text" id="awaryjny-kod" placeholder="Kod ministranta (np. MIN-007)">
+        <select id="awaryjny-wydarzenie"></select>
+        <button class="btn" id="btn-awaryjny-zapisz">Zapisz obecność ręcznie</button>
+        <div id="awaryjny-status"></div>
+    </div>
+
+    <div style="text-align:center; margin-top:20px;">
+        <a href="index.html" style="color:var(--text-dim)">← Powrót do strony głównej</a>
+    </div>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script src="js/kiosk.js"></script>
+</body>
+</html>
