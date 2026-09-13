@@ -136,6 +136,7 @@ document.querySelectorAll('.tabs button').forEach(btn => {
             document.getElementById('tab-content-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
         });
         if (btn.dataset.tab === 'bezpieczenstwo') odswiezBezpieczenstwo();
+        if (btn.dataset.tab === 'karty') odswiezRosterKart();
     });
 });
 
@@ -389,67 +390,98 @@ document.getElementById('btn-generuj-raport').addEventListener('click', async ()
     status.textContent = '✅ Raport pobrany.';
 });
 
-let wierszeKart = [];
+// --- GENERATOR KART (QR ONLY) — wybór ministranta z listy, nie ręczne wpisywanie danych ---
+let rosterKart = [];       // pełna lista ministrantów [{kod, imie, nazwisko}] do wyboru w <select>
+let wierszeKart = [];      // pozycje do wygenerowania: [{kod, pin}] — imię/nazwisko dociągane z rosterKart
+
+async function odswiezRosterKart() {
+    const { data } = await supabaseClient.from('ranking_miesiac').select('kod, imie, nazwisko').order('kod');
+    rosterKart = data || [];
+    if (wierszeKart.length === 0) dodajWierszKarty();
+    else renderujWierszeKart();
+}
+
 function dodajWierszKarty() {
-    const idx = wierszeKart.length;
-    wierszeKart.push({ imie: '', nazwisko: '', kod: '', pin: '' });
+    wierszeKart.push({ kod: rosterKart[0]?.kod || '', pin: '' });
     renderujWierszeKart();
 }
 document.getElementById('btn-dodaj-wiersz-karty').addEventListener('click', dodajWierszKarty);
 
 function renderujWierszeKart() {
     const cont = document.getElementById('karty-lista');
+    const opcje = rosterKart.map(m => `<option value="${m.kod}">${m.kod} — ${m.imie} ${m.nazwisko}</option>`).join('');
     cont.innerHTML = wierszeKart.map((w, i) => `
         <div style="display:flex; gap:8px; margin-bottom:8px;">
-            <input type="text" placeholder="Imię" value="${w.imie}" onchange="wierszeKart[${i}].imie=this.value">
-            <input type="text" placeholder="Nazwisko" value="${w.nazwisko}" onchange="wierszeKart[${i}].nazwisko=this.value">
-            <input type="text" placeholder="Kod" value="${w.kod}" onchange="wierszeKart[${i}].kod=this.value">
-            <input type="text" placeholder="PIN" maxlength="4" value="${w.pin}" onchange="wierszeKart[${i}].pin=this.value">
+            <select onchange="wierszeKart[${i}].kod=this.value" style="flex:2">${opcje.replace(
+                `value="${w.kod}"`, `value="${w.kod}" selected`
+            )}</select>
+            <input type="text" placeholder="PIN (4 cyfry)" maxlength="4" value="${w.pin}" oninput="wierszeKart[${i}].pin=this.value" style="flex:1">
+            <button class="btn btn-danger" style="width:auto" onclick="usunWierszKarty(${i})">✕</button>
         </div>`).join('');
 }
-dodajWierszKarty(); // start z jednym wierszem
+
+function usunWierszKarty(i) {
+    wierszeKart.splice(i, 1);
+    renderujWierszeKart();
+}
 
 document.getElementById('btn-generuj-pdf').addEventListener('click', async () => {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    if (wierszeKart.length === 0) { alert('Dodaj przynajmniej jednego ministranta do listy.'); return; }
 
-    const kartaW = 85, kartaH = 54; // rozmiar wizytówki ~ jak karta kredytowa x2
-    const marginX = 12, marginY = 15, gapX = 6, gapY = 6;
-    const naWiersz = 2;
-    let x = marginX, y = marginY, i = 0;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' }); // 210 x 297 mm
+    let pierwsza = true;
 
     for (const w of wierszeKart) {
-        if (!w.kod) continue;
+        const m = rosterKart.find(r => r.kod === w.kod);
+        if (!m) continue;
 
-        // Ramka karty
-        doc.setDrawColor(180);
-        doc.roundedRect(x, y, kartaW, kartaH, 3, 3);
+        if (!pierwsza) doc.addPage();
+        pierwsza = false;
 
-        // Kod QR (WYŁĄCZNIE QR — bez kodu kreskowego)
-        const qrDataUrl = await QRCode.toDataURL(w.kod, { margin: 1, width: 300 });
-        doc.addImage(qrDataUrl, 'PNG', x + 6, y + 7, 38, 38);
+        // ================= GÓRA STRONY: plakietka (QR + dane) =================
+        doc.setDrawColor(150);
+        doc.roundedRect(20, 20, 170, 130, 6, 6); // ramka plakietki
 
-        // Dane tekstowe
-        doc.setFontSize(12);
-        doc.text(`${w.imie}`, x + 48, y + 16);
-        doc.setFontSize(11);
-        doc.text(`${w.nazwisko}`, x + 48, y + 22);
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.text(`Kod: ${w.kod}`, x + 48, y + 32);
-        doc.text(`PIN: ${w.pin || '----'}`, x + 48, y + 38);
+        doc.setFontSize(10);
+        doc.setTextColor(120);
+        doc.text('E-Ministranci — Karta Ministranta', 30, 34);
         doc.setTextColor(0);
-        doc.setFontSize(7);
-        doc.text('E-Ministranci', x + 48, y + 48);
 
-        i++;
-        if (i % naWiersz === 0) {
-            x = marginX;
-            y += kartaH + gapY;
-        } else {
-            x += kartaW + gapX;
-        }
-        if (y + kartaH > 280) { doc.addPage(); x = marginX; y = marginY; }
+        // Duży kod QR wyśrodkowany w górnej części plakietki (WYŁĄCZNIE QR — bez kodu kreskowego)
+        const qrDataUrl = await QRCode.toDataURL(m.kod, { margin: 1, width: 400 });
+        const qrRozmiar = 70;
+        doc.addImage(qrDataUrl, 'PNG', 105 - qrRozmiar / 2, 40, qrRozmiar, qrRozmiar);
+
+        // Imię, nazwisko i kod pod QR-em, wyśrodkowane
+        doc.setFontSize(20);
+        doc.text(`${m.imie} ${m.nazwisko}`, 105, 122, { align: 'center' });
+        doc.setFontSize(13);
+        doc.setTextColor(90);
+        doc.text(`Kod: ${m.kod}`, 105, 132, { align: 'center' });
+        doc.setTextColor(0);
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text('Zeskanuj przy wejściu do zakrystii', 105, 142, { align: 'center' });
+        doc.setTextColor(0);
+
+        // ================= LINIA DO PRZECIĘCIA =================
+        const yLinia = 165;
+        doc.setDrawColor(150);
+        doc.setLineDashPattern([2, 2], 0);
+        doc.line(15, yLinia, 195, yLinia);
+        doc.setLineDashPattern([], 0);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text('✂ — odetnij i przechowuj osobno —', 105, yLinia - 2, { align: 'center' });
+        doc.setTextColor(0);
+
+        // ================= DÓŁ STRONY: osobny pasek z samym PIN-em =================
+        doc.roundedRect(60, yLinia + 15, 90, 45, 4, 4);
+        doc.setFontSize(11);
+        doc.text(`PIN dla: ${m.imie} ${m.nazwisko} (${m.kod})`, 105, yLinia + 27, { align: 'center' });
+        doc.setFontSize(30);
+        doc.text(w.pin || '----', 105, yLinia + 45, { align: 'center' });
     }
 
     doc.save('karty-ministranci.pdf');
