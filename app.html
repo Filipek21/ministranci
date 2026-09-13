@@ -90,24 +90,46 @@
     </div>
 
     <div id="tab-content-ministranci" class="card hidden">
-        <h3>Dodaj ministranta</h3>
+        <h3 id="mi-tytul-formularza">Dodaj ministranta</h3>
         <input type="text" id="mi-imie" placeholder="Imię">
         <input type="text" id="mi-nazwisko" placeholder="Nazwisko">
         <input type="text" id="mi-kod" placeholder="Kod (np. MIN-014)">
         <input type="text" id="mi-pin" placeholder="PIN (4 cyfry)" maxlength="4">
         <button class="btn" id="btn-dodaj-ministranta">Dodaj</button>
+        <button class="btn btn-secondary hidden" id="btn-anuluj-edycje">Anuluj edycję</button>
         <div id="ministrant-status"></div>
-        <h3>Ranking / lista</h3>
-        <table id="tabela-ministranci"><thead><tr><th>Kod</th><th>Imię i nazwisko</th><th>Punkty (miesiąc)</th></tr></thead><tbody></tbody></table>
+
+        <h3>Lista ministrantów</h3>
+        <table id="tabela-ministranci">
+            <thead><tr><th>Kod</th><th>Imię i nazwisko</th><th>PIN</th><th>Punkty (miesiąc)</th><th>Status</th><th>Plakietki</th><th>Akcje</th></tr></thead>
+            <tbody></tbody>
+        </table>
+
+        <div id="panel-plakietki" class="card hidden" style="margin-top:16px;">
+            <div class="top-bar">
+                <h3 id="plakietki-tytul">Plakietki ministranta</h3>
+                <button class="btn btn-secondary" style="width:auto" id="btn-zamknij-plakietki">Zamknij</button>
+            </div>
+            <button class="btn" id="btn-nowa-plakietka">+ Wygeneruj nową plakietkę (kartę)</button>
+            <table>
+                <thead><tr><th>Kod plakietki</th><th>Wygenerowano</th><th>Status</th><th>Akcja</th></tr></thead>
+                <tbody id="tabela-plakietki"></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="tab-content-karty" class="card hidden">
         <h3>Generator wizytówek (kod QR + PIN)</h3>
-        <p style="color:var(--text-dim)">Wybierz ministrantów z listy (dane pobierane automatycznie z bazy) i podaj ich PIN-y — PDF generuje jedną stronę na osobę: <b>u góry strony</b> pełna plakietka z kodem QR, imieniem, nazwiskiem i kodem, a <b>na dole strony</b>, po linii do przecięcia, osobny pasek z samym 4-cyfrowym PIN-em.</p>
-        <p><b>Uwaga:</b> PIN-y są hashowane w bazie i nie da się ich odczytać wstecznie — wpisz tu PIN-y, które właśnie nadałeś ministrantom podczas dodawania (zapisz je sobie osobno przy tworzeniu kont).</p>
+        <p style="color:var(--text-dim)">Zaznacz, którym ministrantom wydrukować nową kartę. Każda karta dostaje własny, unikalny kod plakietki (widoczny w QR) i datę wygenerowania — możesz ją później osobno unieważnić, jeśli ktoś ją zgubi, bez zmiany konta czy PIN-u.</p>
         <div id="karty-lista"></div>
-        <button class="btn btn-secondary" id="btn-dodaj-wiersz-karty">+ Dodaj ministranta do listy</button>
-        <button class="btn" id="btn-generuj-pdf">Generuj PDF z kartami</button>
+        <button class="btn" id="btn-generuj-pdf">Generuj PDF dla zaznaczonych</button>
+        <div id="karty-status"></div>
+
+        <h3 style="margin-top:24px;">Wszystkie wydane plakietki</h3>
+        <table id="tabela-wszystkie-plakietki">
+            <thead><tr><th>Kod plakietki</th><th>Ministrant</th><th>Wygenerowano</th><th>Status</th><th>Akcja</th></tr></thead>
+            <tbody></tbody>
+        </table>
     </div>
 
     <div id="tab-content-bezpieczenstwo" class="card hidden">
