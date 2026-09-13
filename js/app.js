@@ -194,34 +194,159 @@ async function odswiezKalendarz() {
         </tr>`).join('');
 }
 
-// Ministranci
+// Ministranci — dodawanie / edycja / PIN / dezaktywacja / plakietki
+let edytowanyMinistrantId = null; // null = tryb "dodaj", ustawiony = tryb "edytuj"
+let biezacaListaMinistrantow = [];
+
 document.getElementById('btn-dodaj-ministranta').addEventListener('click', async () => {
     const imie = document.getElementById('mi-imie').value.trim();
     const nazwisko = document.getElementById('mi-nazwisko').value.trim();
     const kod = document.getElementById('mi-kod').value.trim();
     const pin = document.getElementById('mi-pin').value.trim();
     const status = document.getElementById('ministrant-status');
+    status.textContent = '';
 
-    if (!imie || !nazwisko || !kod || pin.length !== 4) {
-        status.textContent = 'Uzupełnij wszystkie pola (PIN = 4 cyfry).'; return;
+    if (!imie || !nazwisko || !kod) { status.textContent = 'Uzupełnij imię, nazwisko i kod.'; return; }
+
+    if (edytowanyMinistrantId) {
+        // --- TRYB EDYCJI ---
+        const wynik = await wywolajRPC('admin_edytuj_ministranta', {
+            p_kod_admina: sesja.kod, p_pin_admina: sesja.pin,
+            p_ministrant_id: edytowanyMinistrantId,
+            p_nowe_imie: imie, p_nowe_nazwisko: nazwisko, p_nowy_kod: kod
+        });
+        if (!wynik.sukces) { status.textContent = '❌ ' + wynik.blad; return; }
+
+        // Jeśli podano też nowy PIN przy edycji — zresetuj go od razu (admin zna nowy PIN, nie musi znać starego)
+        if (pin.length === 4) {
+            const wynikPin = await wywolajRPC('admin_zmien_pin_ministranta', {
+                p_kod_admina: sesja.kod, p_pin_admina: sesja.pin,
+                p_ministrant_id: edytowanyMinistrantId, p_nowy_pin: pin
+            });
+            if (!wynikPin.sukces) { status.textContent = '⚠️ Dane zapisane, ale PIN nie: ' + wynikPin.blad; }
+        }
+        status.textContent = status.textContent || '✅ Zapisano zmiany.';
+        zakonczEdycjeMinistranta();
+        await odswiezListeMinistrantow();
+        return;
     }
 
+    // --- TRYB DODAWANIA ---
+    if (pin.length !== 4) { status.textContent = 'PIN musi mieć 4 cyfry.'; return; }
     const wynik = await wywolajRPC('admin_dodaj_ministranta', {
         p_kod_admina: sesja.kod, p_pin_admina: sesja.pin,
         p_imie: imie, p_nazwisko: nazwisko, p_nowy_kod: kod, p_nowy_pin: pin
     });
-    status.textContent = wynik.sukces ? `✅ Dodano ${kod}. Zapisz PIN — nie da się go odczytać ponownie!` : ('❌ ' + wynik.blad);
+    status.textContent = wynik.sukces ? `✅ Dodano ${kod}.` : ('❌ ' + wynik.blad);
     if (wynik.sukces) {
         ['mi-imie','mi-nazwisko','mi-kod','mi-pin'].forEach(id => document.getElementById(id).value = '');
         await odswiezListeMinistrantow();
     }
 });
 
+function rozpocznijEdycjeMinistranta(id) {
+    const m = biezacaListaMinistrantow.find(x => x.id === id);
+    if (!m) return;
+    edytowanyMinistrantId = id;
+    document.getElementById('mi-tytul-formularza').textContent = `Edytuj: ${m.imie} ${m.nazwisko}`;
+    document.getElementById('mi-imie').value = m.imie;
+    document.getElementById('mi-nazwisko').value = m.nazwisko;
+    document.getElementById('mi-kod').value = m.kod;
+    document.getElementById('mi-pin').value = '';
+    document.getElementById('mi-pin').placeholder = 'Nowy PIN (zostaw puste, by nie zmieniać)';
+    document.getElementById('btn-dodaj-ministranta').textContent = 'Zapisz zmiany';
+    document.getElementById('btn-anuluj-edycje').classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function zakonczEdycjeMinistranta() {
+    edytowanyMinistrantId = null;
+    document.getElementById('mi-tytul-formularza').textContent = 'Dodaj ministranta';
+    ['mi-imie','mi-nazwisko','mi-kod','mi-pin'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mi-pin').placeholder = 'PIN (4 cyfry)';
+    document.getElementById('btn-dodaj-ministranta').textContent = 'Dodaj';
+    document.getElementById('btn-anuluj-edycje').classList.add('hidden');
+}
+document.getElementById('btn-anuluj-edycje').addEventListener('click', zakonczEdycjeMinistranta);
+
 async function odswiezListeMinistrantow() {
-    const { data } = await supabaseClient.from('ranking_miesiac').select('*').order('kod');
-    document.querySelector('#tabela-ministranci tbody').innerHTML = (data || []).map(m =>
-        `<tr><td>${m.kod}</td><td>${m.imie} ${m.nazwisko}</td><td>${m.punkty_miesiac}</td></tr>`
-    ).join('');
+    const wynik = await wywolajRPC('admin_lista_ministrantow', { p_kod: sesja.kod, p_pin: sesja.pin });
+    if (!wynik.sukces) {
+        document.querySelector('#tabela-ministranci tbody').innerHTML = `<tr><td colspan="7">❌ ${wynik.blad}</td></tr>`;
+        return;
+    }
+    biezacaListaMinistrantow = wynik.dane || [];
+    document.querySelector('#tabela-ministranci tbody').innerHTML = biezacaListaMinistrantow.map(m => `
+        <tr>
+            <td>${m.kod}</td>
+            <td>${m.imie} ${m.nazwisko}${m.is_admin ? ' 👑' : ''}${m.is_moderator ? ' ⛪' : ''}</td>
+            <td>${m.pin_jawny ?? '—'}</td>
+            <td>${m.punkty_miesiac}</td>
+            <td style="color:${m.aktywny ? 'var(--ok)' : 'var(--err)'}">${m.aktywny ? 'aktywny' : 'nieaktywny'}</td>
+            <td>${m.liczba_aktywnych_plakietek}</td>
+            <td style="white-space:nowrap;">
+                <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="rozpocznijEdycjeMinistranta('${m.id}')">Edytuj</button>
+                <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="otworzPlakietki('${m.id}', '${m.imie} ${m.nazwisko}')">Plakietki</button>
+                ${m.aktywny
+                    ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="dezaktywujMinistranta('${m.id}')">Dezaktywuj</button>`
+                    : `<button class="btn" style="width:auto; padding:6px 10px;" onclick="przywrocMinistranta('${m.id}')">Przywróć</button>`}
+            </td>
+        </tr>`).join('') || '<tr><td colspan="7">Brak ministrantów.</td></tr>';
+}
+
+async function dezaktywujMinistranta(id) {
+    if (!confirm('Dezaktywować to konto? Nie będzie mogło się logować, a jego karty (plakietki) przestaną działać w Kiosku. Historia obecności zostaje zachowana.')) return;
+    const wynik = await wywolajRPC('admin_usun_ministranta', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: id });
+    document.getElementById('ministrant-status').textContent = wynik.sukces ? '✅ Konto dezaktywowane.' : ('❌ ' + wynik.blad);
+    await odswiezListeMinistrantow();
+}
+
+async function przywrocMinistranta(id) {
+    const wynik = await wywolajRPC('admin_przywroc_ministranta', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: id });
+    document.getElementById('ministrant-status').textContent = wynik.sukces ? ('✅ ' + (wynik.informacja || 'Przywrócono.')) : ('❌ ' + wynik.blad);
+    await odswiezListeMinistrantow();
+}
+
+// --- PANEL PLAKIETEK (dla jednego ministranta, z poziomu zakładki Ministranci) ---
+let plakietkiDlaMinistrantaId = null;
+
+async function otworzPlakietki(ministrantId, imieNazwisko) {
+    plakietkiDlaMinistrantaId = ministrantId;
+    document.getElementById('plakietki-tytul').textContent = `Plakietki: ${imieNazwisko}`;
+    document.getElementById('panel-plakietki').classList.remove('hidden');
+    await odswiezPanelPlakietek();
+}
+document.getElementById('btn-zamknij-plakietki').addEventListener('click', () => {
+    document.getElementById('panel-plakietki').classList.add('hidden');
+    plakietkiDlaMinistrantaId = null;
+});
+
+async function odswiezPanelPlakietek() {
+    const wynik = await wywolajRPC('admin_lista_plakietek', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: plakietkiDlaMinistrantaId });
+    const tbody = document.getElementById('tabela-plakietki');
+    if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="4">❌ ${wynik.blad}</td></tr>`; return; }
+    tbody.innerHTML = (wynik.dane || []).map(p => `
+        <tr>
+            <td>${p.kod_plakietki}</td>
+            <td>${new Date(p.wygenerowano).toLocaleString('pl-PL')}</td>
+            <td style="color:${p.aktywna ? 'var(--ok)' : 'var(--err)'}">${p.aktywna ? 'aktywna' : 'unieważniona'}</td>
+            <td>${p.aktywna ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="uniewaznijPlakietkeZPanelu('${p.kod_plakietki}')">Unieważnij</button>` : '—'}</td>
+        </tr>`).join('') || '<tr><td colspan="4">Brak wydanych plakietek.</td></tr>';
+}
+
+document.getElementById('btn-nowa-plakietka').addEventListener('click', async () => {
+    const wynik = await wywolajRPC('admin_generuj_plakietke', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: plakietkiDlaMinistrantaId });
+    if (!wynik.sukces) { alert('❌ ' + wynik.blad); return; }
+    await odswiezPanelPlakietek();
+    await odswiezListeMinistrantow();
+});
+
+async function uniewaznijPlakietkeZPanelu(kodPlakietki) {
+    if (!confirm(`Unieważnić plakietkę ${kodPlakietki}? Ten kod QR natychmiast przestanie działać w Kiosku.`)) return;
+    const wynik = await wywolajRPC('admin_uniewaznij_plakietke', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_kod_plakietki: kodPlakietki });
+    if (!wynik.sukces) alert('❌ ' + wynik.blad);
+    await odswiezPanelPlakietek();
+    await odswiezListeMinistrantow();
 }
 
 // --- BEZPIECZEŃSTWO: zablokowane kody + log korekt (tylko Admin widzi odblokowanie, ale log widzi też Moderator) ---
@@ -390,79 +515,79 @@ document.getElementById('btn-generuj-raport').addEventListener('click', async ()
     status.textContent = '✅ Raport pobrany.';
 });
 
-// --- GENERATOR KART (QR ONLY) — wybór ministranta z listy, nie ręczne wpisywanie danych ---
-let rosterKart = [];       // pełna lista ministrantów [{kod, imie, nazwisko}] do wyboru w <select>
-let wierszeKart = [];      // pozycje do wygenerowania: [{kod, pin}] — imię/nazwisko dociągane z rosterKart
+// --- GENERATOR KART (QR ONLY) — zaznaczasz komu wydrukować kartę, PIN widoczny automatycznie ---
+let rosterKart = [];              // pełna lista ministrantów (z admin_lista_ministrantow, ma pin_jawny)
+let zaznaczeniDoWydruku = new Set(); // id ministrantów zaznaczonych checkboxem
 
 async function odswiezRosterKart() {
-    const { data } = await supabaseClient.from('ranking_miesiac').select('kod, imie, nazwisko').order('kod');
-    rosterKart = data || [];
-    if (wierszeKart.length === 0) dodajWierszKarty();
-    else renderujWierszeKart();
+    const wynik = await wywolajRPC('admin_lista_ministrantow', { p_kod: sesja.kod, p_pin: sesja.pin });
+    if (!wynik.sukces) {
+        document.getElementById('karty-lista').innerHTML = `<p>❌ ${wynik.blad}</p>`;
+        return;
+    }
+    rosterKart = (wynik.dane || []).filter(m => m.aktywny);
+    renderujListeKart();
+    await odswiezWszystkiePlakietki();
 }
 
-function dodajWierszKarty() {
-    wierszeKart.push({ kod: rosterKart[0]?.kod || '', pin: '' });
-    renderujWierszeKart();
-}
-document.getElementById('btn-dodaj-wiersz-karty').addEventListener('click', dodajWierszKarty);
-
-function renderujWierszeKart() {
+function renderujListeKart() {
     const cont = document.getElementById('karty-lista');
-    const opcje = rosterKart.map(m => `<option value="${m.kod}">${m.kod} — ${m.imie} ${m.nazwisko}</option>`).join('');
-    cont.innerHTML = wierszeKart.map((w, i) => `
-        <div style="display:flex; gap:8px; margin-bottom:8px;">
-            <select onchange="wierszeKart[${i}].kod=this.value" style="flex:2">${opcje.replace(
-                `value="${w.kod}"`, `value="${w.kod}" selected`
-            )}</select>
-            <input type="text" placeholder="PIN (4 cyfry)" maxlength="4" value="${w.pin}" oninput="wierszeKart[${i}].pin=this.value" style="flex:1">
-            <button class="btn btn-danger" style="width:auto" onclick="usunWierszKarty(${i})">✕</button>
-        </div>`).join('');
-}
-
-function usunWierszKarty(i) {
-    wierszeKart.splice(i, 1);
-    renderujWierszeKart();
+    cont.innerHTML = rosterKart.map(m => `
+        <label style="display:flex; align-items:center; gap:10px; padding:8px; border-bottom:1px solid #2a3550;">
+            <input type="checkbox" style="width:auto" ${zaznaczeniDoWydruku.has(m.id) ? 'checked' : ''}
+                   onchange="this.checked ? zaznaczeniDoWydruku.add('${m.id}') : zaznaczeniDoWydruku.delete('${m.id}')">
+            <span style="flex:1">${m.kod} — ${m.imie} ${m.nazwisko}</span>
+            <span style="color:var(--text-dim)">PIN: ${m.pin_jawny ?? '—'}</span>
+        </label>`).join('') || '<p style="color:var(--text-dim)">Brak aktywnych ministrantów.</p>';
 }
 
 document.getElementById('btn-generuj-pdf').addEventListener('click', async () => {
-    if (wierszeKart.length === 0) { alert('Dodaj przynajmniej jednego ministranta do listy.'); return; }
+    const status = document.getElementById('karty-status');
+    const wybrani = rosterKart.filter(m => zaznaczeniDoWydruku.has(m.id));
+    if (wybrani.length === 0) { status.textContent = 'Zaznacz przynajmniej jednego ministranta.'; return; }
 
+    status.textContent = 'Generuję plakietki i PDF…';
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' }); // 210 x 297 mm
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     let pierwsza = true;
 
-    for (const w of wierszeKart) {
-        const m = rosterKart.find(r => r.kod === w.kod);
-        if (!m) continue;
+    for (const m of wybrani) {
+        // Nowa, unikalna plakietka dla tej karty (osobny kod w QR, można później unieważnić bez ruszania konta)
+        const plakietka = await wywolajRPC('admin_generuj_plakietke', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: m.id });
+        if (!plakietka.sukces) { status.textContent = `❌ Błąd dla ${m.kod}: ${plakietka.blad}`; continue; }
 
         if (!pierwsza) doc.addPage();
         pierwsza = false;
 
+        const dataGeneracji = new Date(plakietka.wygenerowano);
+        const dataTekst = dataGeneracji.toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
         // ================= GÓRA STRONY: plakietka (QR + dane) =================
         doc.setDrawColor(150);
-        doc.roundedRect(20, 20, 170, 130, 6, 6); // ramka plakietki
+        doc.roundedRect(20, 20, 170, 130, 6, 6);
 
         doc.setFontSize(10);
         doc.setTextColor(120);
         doc.text('E-Ministranci — Karta Ministranta', 30, 34);
         doc.setTextColor(0);
 
-        // Duży kod QR wyśrodkowany w górnej części plakietki (WYŁĄCZNIE QR — bez kodu kreskowego)
-        const qrDataUrl = await QRCode.toDataURL(m.kod, { margin: 1, width: 400 });
-        const qrRozmiar = 70;
-        doc.addImage(qrDataUrl, 'PNG', 105 - qrRozmiar / 2, 40, qrRozmiar, qrRozmiar);
+        // Duży kod QR — zakodowany kod PLAKIETKI (nie kod logowania!), WYŁĄCZNIE QR
+        const qrDataUrl = await QRCode.toDataURL(plakietka.kod_plakietki, { margin: 1, width: 400 });
+        const qrRozmiar = 65;
+        doc.addImage(qrDataUrl, 'PNG', 105 - qrRozmiar / 2, 38, qrRozmiar, qrRozmiar);
 
-        // Imię, nazwisko i kod pod QR-em, wyśrodkowane
         doc.setFontSize(20);
-        doc.text(`${m.imie} ${m.nazwisko}`, 105, 122, { align: 'center' });
+        doc.text(`${m.imie} ${m.nazwisko}`, 105, 114, { align: 'center' });
         doc.setFontSize(13);
         doc.setTextColor(90);
-        doc.text(`Kod: ${m.kod}`, 105, 132, { align: 'center' });
+        doc.text(`Kod: ${m.kod}`, 105, 123, { align: 'center' });
         doc.setTextColor(0);
-        doc.setFontSize(9);
-        doc.setTextColor(150);
-        doc.text('Zeskanuj przy wejściu do zakrystii', 105, 142, { align: 'center' });
+
+        // Identyfikator TEJ konkretnej plakietki + data wygenerowania (do unieważnienia w razie zgubienia)
+        doc.setFontSize(7);
+        doc.setTextColor(160);
+        doc.text(`Nr plakietki: ${plakietka.kod_plakietki}`, 105, 141, { align: 'center' });
+        doc.text(`Wygenerowano: ${dataTekst}`, 105, 146, { align: 'center' });
         doc.setTextColor(0);
 
         // ================= LINIA DO PRZECIĘCIA =================
@@ -476,13 +601,42 @@ document.getElementById('btn-generuj-pdf').addEventListener('click', async () =>
         doc.text('✂ — odetnij i przechowuj osobno —', 105, yLinia - 2, { align: 'center' });
         doc.setTextColor(0);
 
-        // ================= DÓŁ STRONY: osobny pasek z samym PIN-em =================
-        doc.roundedRect(60, yLinia + 15, 90, 45, 4, 4);
-        doc.setFontSize(11);
-        doc.text(`PIN dla: ${m.imie} ${m.nazwisko} (${m.kod})`, 105, yLinia + 27, { align: 'center' });
-        doc.setFontSize(30);
-        doc.text(w.pin || '----', 105, yLinia + 45, { align: 'center' });
+        // ================= DÓŁ STRONY: osobny, mało widoczny pasek z PIN-em =================
+        doc.roundedRect(75, yLinia + 15, 60, 30, 4, 4);
+        doc.setFontSize(8);
+        doc.setTextColor(140);
+        doc.text(`PIN — ${m.kod}`, 105, yLinia + 25, { align: 'center' });
+        doc.setFontSize(16);
+        doc.setTextColor(60);
+        doc.text(m.pin_jawny || '----', 105, yLinia + 36, { align: 'center' });
+        doc.setTextColor(0);
     }
 
     doc.save('karty-ministranci.pdf');
+    status.textContent = `✅ Wygenerowano PDF dla ${wybrani.length} osób.`;
+    zaznaczeniDoWydruku.clear();
+    renderujListeKart();
+    await odswiezListeMinistrantow();
 });
+
+// --- Lista WSZYSTKICH wydanych plakietek (widok globalny, w tej samej zakładce) ---
+async function odswiezWszystkiePlakietki() {
+    const wynik = await wywolajRPC('admin_lista_plakietek', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: null });
+    const tbody = document.querySelector('#tabela-wszystkie-plakietki tbody');
+    if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="5">❌ ${wynik.blad}</td></tr>`; return; }
+    tbody.innerHTML = (wynik.dane || []).map(p => `
+        <tr>
+            <td>${p.kod_plakietki}</td>
+            <td>${p.imie} ${p.nazwisko} (${p.ministrant_kod})</td>
+            <td>${new Date(p.wygenerowano).toLocaleString('pl-PL')}</td>
+            <td style="color:${p.aktywna ? 'var(--ok)' : 'var(--err)'}">${p.aktywna ? 'aktywna' : 'unieważniona'}</td>
+            <td>${p.aktywna ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="uniewaznijZListyGlownej('${p.kod_plakietki}')">Unieważnij</button>` : '—'}</td>
+        </tr>`).join('') || '<tr><td colspan="5">Brak wydanych plakietek.</td></tr>';
+}
+
+async function uniewaznijZListyGlownej(kodPlakietki) {
+    if (!confirm(`Unieważnić plakietkę ${kodPlakietki}? Ten kod QR natychmiast przestanie działać w Kiosku.`)) return;
+    const wynik = await wywolajRPC('admin_uniewaznij_plakietke', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_kod_plakietki: kodPlakietki });
+    if (!wynik.sukces) alert('❌ ' + wynik.blad);
+    await odswiezWszystkiePlakietki();
+}
