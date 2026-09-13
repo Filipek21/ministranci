@@ -103,10 +103,10 @@
 
     <div id="tab-content-karty" class="card hidden">
         <h3>Generator wizytówek (kod QR + PIN)</h3>
-        <p style="color:var(--text-dim)">Wygeneruje PDF z winietkami do wycięcia — wyłącznie kod QR (bez kodu kreskowego).</p>
+        <p style="color:var(--text-dim)">Wybierz ministrantów z listy (dane pobierane automatycznie z bazy) i podaj ich PIN-y — PDF generuje jedną stronę na osobę: <b>u góry strony</b> pełna plakietka z kodem QR, imieniem, nazwiskiem i kodem, a <b>na dole strony</b>, po linii do przecięcia, osobny pasek z samym 4-cyfrowym PIN-em.</p>
         <p><b>Uwaga:</b> PIN-y są hashowane w bazie i nie da się ich odczytać wstecznie — wpisz tu PIN-y, które właśnie nadałeś ministrantom podczas dodawania (zapisz je sobie osobno przy tworzeniu kont).</p>
         <div id="karty-lista"></div>
-        <button class="btn btn-secondary" id="btn-dodaj-wiersz-karty">+ Dodaj wiersz</button>
+        <button class="btn btn-secondary" id="btn-dodaj-wiersz-karty">+ Dodaj ministranta do listy</button>
         <button class="btn" id="btn-generuj-pdf">Generuj PDF z kartami</button>
     </div>
 
