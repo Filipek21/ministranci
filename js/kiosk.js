@@ -175,6 +175,28 @@ async function wejdzWTrybAwaryjny() {
     sel.innerHTML = (kalendarz || []).map(w =>
         `<option value="${w.id}">${w.nazwa} (${new Date(w.data_wydarzenia).toLocaleString('pl-PL')})</option>`
     ).join('');
+
+    await odswiezOstatnieObecnosci();
+}
+
+async function odswiezOstatnieObecnosci() {
+    const wynik = await wywolajRPC('admin_ostatnie_obecnosci', { p_kod_admina: biezacyKod, p_pin_admina: pinBufor, p_limit: 20 });
+    const tbody = document.getElementById('tabela-ostatnie-obecnosci');
+    if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="5">❌ ${wynik.blad}</td></tr>`; return; }
+    tbody.innerHTML = (wynik.dane || []).map(o => `
+        <tr>
+            <td>${new Date(o.data_zapisu).toLocaleTimeString('pl-PL', {hour:'2-digit', minute:'2-digit'})}</td>
+            <td>${o.imie} ${o.nazwisko} (${o.kod})</td>
+            <td>${o.wydarzenie}</td>
+            <td>+${o.punkty}</td>
+            <td><button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="cofnijObecnosc('${o.id}')">Cofnij</button></td>
+        </tr>`).join('') || '<tr><td colspan="5">Brak zapisanych obecności.</td></tr>';
+}
+
+async function cofnijObecnosc(id) {
+    const wynik = await wywolajRPC('admin_cofnij_obecnosc', { p_kod_admina: biezacyKod, p_pin_admina: pinBufor, p_obecnosc_id: id });
+    document.getElementById('awaryjny-status').textContent = wynik.sukces ? '✅ Cofnięto obecność.' : ('❌ ' + wynik.blad);
+    await odswiezOstatnieObecnosci();
 }
 
 document.getElementById('btn-awaryjny-zapisz').addEventListener('click', async () => {
