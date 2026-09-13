@@ -203,6 +203,7 @@ document.getElementById('btn-dodaj-ministranta').addEventListener('click', async
     const nazwisko = document.getElementById('mi-nazwisko').value.trim();
     const kod = document.getElementById('mi-kod').value.trim();
     const pin = document.getElementById('mi-pin').value.trim();
+    const jestModeratorem = document.getElementById('mi-moderator').checked;
     const status = document.getElementById('ministrant-status');
     status.textContent = '';
 
@@ -213,7 +214,8 @@ document.getElementById('btn-dodaj-ministranta').addEventListener('click', async
         const wynik = await wywolajRPC('admin_edytuj_ministranta', {
             p_kod_admina: sesja.kod, p_pin_admina: sesja.pin,
             p_ministrant_id: edytowanyMinistrantId,
-            p_nowe_imie: imie, p_nowe_nazwisko: nazwisko, p_nowy_kod: kod
+            p_nowe_imie: imie, p_nowe_nazwisko: nazwisko, p_nowy_kod: kod,
+            p_is_moderator: jestModeratorem
         });
         if (!wynik.sukces) { status.textContent = '❌ ' + wynik.blad; return; }
 
@@ -235,11 +237,13 @@ document.getElementById('btn-dodaj-ministranta').addEventListener('click', async
     if (pin.length !== 4) { status.textContent = 'PIN musi mieć 4 cyfry.'; return; }
     const wynik = await wywolajRPC('admin_dodaj_ministranta', {
         p_kod_admina: sesja.kod, p_pin_admina: sesja.pin,
-        p_imie: imie, p_nazwisko: nazwisko, p_nowy_kod: kod, p_nowy_pin: pin
+        p_imie: imie, p_nazwisko: nazwisko, p_nowy_kod: kod, p_nowy_pin: pin,
+        p_is_moderator: jestModeratorem
     });
     status.textContent = wynik.sukces ? `✅ Dodano ${kod}.` : ('❌ ' + wynik.blad);
     if (wynik.sukces) {
         ['mi-imie','mi-nazwisko','mi-kod','mi-pin'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('mi-moderator').checked = false;
         await odswiezListeMinistrantow();
     }
 });
@@ -254,6 +258,7 @@ function rozpocznijEdycjeMinistranta(id) {
     document.getElementById('mi-kod').value = m.kod;
     document.getElementById('mi-pin').value = '';
     document.getElementById('mi-pin').placeholder = 'Nowy PIN (zostaw puste, by nie zmieniać)';
+    document.getElementById('mi-moderator').checked = !!m.is_moderator;
     document.getElementById('btn-dodaj-ministranta').textContent = 'Zapisz zmiany';
     document.getElementById('btn-anuluj-edycje').classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -264,10 +269,17 @@ function zakonczEdycjeMinistranta() {
     document.getElementById('mi-tytul-formularza').textContent = 'Dodaj ministranta';
     ['mi-imie','mi-nazwisko','mi-kod','mi-pin'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mi-pin').placeholder = 'PIN (4 cyfry)';
+    document.getElementById('mi-moderator').checked = false;
     document.getElementById('btn-dodaj-ministranta').textContent = 'Dodaj';
     document.getElementById('btn-anuluj-edycje').classList.add('hidden');
 }
 document.getElementById('btn-anuluj-edycje').addEventListener('click', zakonczEdycjeMinistranta);
+
+async function przelaczRoleModeratora(id, nowaWartosc) {
+    const wynik = await wywolajRPC('admin_ustaw_moderatora', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: id, p_is_moderator: nowaWartosc });
+    if (!wynik.sukces) alert('❌ ' + wynik.blad);
+    await odswiezListeMinistrantow();
+}
 
 async function odswiezListeMinistrantow() {
     const wynik = await wywolajRPC('admin_lista_ministrantow', { p_kod: sesja.kod, p_pin: sesja.pin });
@@ -287,6 +299,9 @@ async function odswiezListeMinistrantow() {
             <td style="white-space:nowrap;">
                 <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="rozpocznijEdycjeMinistranta('${m.id}')">Edytuj</button>
                 <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="otworzPlakietki('${m.id}', '${m.imie} ${m.nazwisko}')">Plakietki</button>
+                ${!m.is_admin ? (m.is_moderator
+                    ? `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="przelaczRoleModeratora('${m.id}', false)">Odbierz rolę Księdza</button>`
+                    : `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="przelaczRoleModeratora('${m.id}', true)">Nadaj rolę Księdza</button>`) : ''}
                 ${m.aktywny
                     ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="dezaktywujMinistranta('${m.id}')">Dezaktywuj</button>`
                     : `<button class="btn" style="width:auto; padding:6px 10px;" onclick="przywrocMinistranta('${m.id}')">Przywróć</button>`}
