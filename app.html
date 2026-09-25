@@ -34,11 +34,17 @@
         <div class="etykieta">punktów w tym miesiącu</div>
     </div>
     <div class="card">
-        <h3>Historia (ten miesiąc)</h3>
-        <table id="mm-historia"><tbody></tbody></table>
+        <h3>Historia obecności</h3>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <select id="mm-hist-miesiac"></select>
+            <input type="number" id="mm-hist-rok" style="width:100px;">
+            <button class="btn btn-secondary" style="width:auto" id="btn-mm-pokaz-historie">Pokaż</button>
+        </div>
+        <p id="mm-hist-suma" style="color:var(--text-dim)"></p>
+        <table id="mm-historia"><thead><tr><th>Wydarzenie</th><th>Data</th><th>Zaliczone jako</th><th>Punkty</th></tr></thead><tbody></tbody></table>
     </div>
     <div class="card">
-        <h3>Ranking</h3>
+        <h3>Ranking (bieżący miesiąc)</h3>
         <table id="mm-ranking"><tbody></tbody></table>
     </div>
     <div class="card">
@@ -63,7 +69,11 @@
     <div class="tabs">
         <button class="active" data-tab="kalendarz">Kalendarz</button>
         <button data-tab="ministranci">Ministranci</button>
+        <button data-tab="obecnosci">Obecności (miesiąc)</button>
         <button data-tab="karty" id="tab-karty">Generator kart QR</button>
+        <button data-tab="zgloszenia">Zgłoszenia</button>
+        <button data-tab="kioski">Kioski</button>
+        <button data-tab="baza">Baza danych</button>
         <button data-tab="bezpieczenstwo">Bezpieczeństwo</button>
     </div>
 
@@ -90,21 +100,24 @@
     </div>
 
     <div id="tab-content-ministranci" class="card hidden">
-        <h3 id="mi-tytul-formularza">Dodaj ministranta</h3>
-        <input type="text" id="mi-imie" placeholder="Imię">
-        <input type="text" id="mi-nazwisko" placeholder="Nazwisko">
-        <input type="text" id="mi-kod" placeholder="Kod (np. MIN-014)">
-        <input type="text" id="mi-pin" placeholder="PIN (4 cyfry)" maxlength="4">
-        <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-            <input type="checkbox" id="mi-moderator" style="width:auto"> To konto jest Księdzem / Opiekunem (nie bierze udziału w rankingu)
-        </label>
-        <button class="btn" id="btn-dodaj-ministranta">Dodaj</button>
-        <button class="btn btn-secondary hidden" id="btn-anuluj-edycje">Anuluj edycję</button>
-        <div id="ministrant-status"></div>
+        <div id="mi-formularz-admin-only">
+            <h3 id="mi-tytul-formularza">Dodaj ministranta</h3>
+            <input type="text" id="mi-imie" placeholder="Imię">
+            <input type="text" id="mi-nazwisko" placeholder="Nazwisko">
+            <input type="text" id="mi-kod" placeholder="Kod (np. MIN-014)">
+            <input type="text" id="mi-pin" placeholder="PIN (4 cyfry)" maxlength="4">
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                <input type="checkbox" id="mi-moderator" style="width:auto"> To konto jest Księdzem / Opiekunem (nie bierze udziału w rankingu)
+            </label>
+            <button class="btn" id="btn-dodaj-ministranta">Dodaj</button>
+            <button class="btn btn-secondary hidden" id="btn-anuluj-edycje">Anuluj edycję</button>
+            <div id="ministrant-status"></div>
+        </div>
 
         <h3>Lista ministrantów</h3>
+        <p style="color:var(--text-dim); font-size:0.85rem;">"Ostatnie logowanie (dom)" = panel PWA. "Ostatni Kiosk" = ostatnie wejście Admina/Księdza w tryb specjalny na tablecie w zakrystii. To dwa niezależne źródła.</p>
         <table id="tabela-ministranci">
-            <thead><tr><th>Kod</th><th>Imię i nazwisko</th><th>PIN</th><th>Punkty (miesiąc)</th><th>Status</th><th>Plakietki</th><th>Akcje</th></tr></thead>
+            <thead><tr><th>Kod</th><th>Imię i nazwisko</th><th>PIN</th><th>Punkty (miesiąc)</th><th>Ostatnie logowanie (dom)</th><th>Ostatni Kiosk</th><th>Status</th><th>Plakietki</th><th>Akcje</th></tr></thead>
             <tbody></tbody>
         </table>
 
@@ -113,12 +126,26 @@
                 <h3 id="plakietki-tytul">Plakietki ministranta</h3>
                 <button class="btn btn-secondary" style="width:auto" id="btn-zamknij-plakietki">Zamknij</button>
             </div>
-            <button class="btn" id="btn-nowa-plakietka">+ Wygeneruj nową plakietkę (kartę)</button>
+            <button class="btn admin-only-akcja hidden" id="btn-nowa-plakietka">+ Wygeneruj nową plakietkę (kartę)</button>
             <table>
                 <thead><tr><th>Kod plakietki</th><th>Wygenerowano</th><th>Status</th><th>Akcja</th></tr></thead>
                 <tbody id="tabela-plakietki"></tbody>
             </table>
         </div>
+    </div>
+
+    <div id="tab-content-obecnosci" class="card hidden">
+        <h3>Pełna historia obecności — wszyscy ministranci</h3>
+        <p style="color:var(--text-dim)">Admin i Ksiądz widzą to samo. Wybierz miesiąc, żeby przejrzeć dowolny okres, nie tylko bieżący.</p>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <select id="ob-miesiac"></select>
+            <input type="number" id="ob-rok" style="width:100px;">
+            <button class="btn btn-secondary" style="width:auto" id="btn-ob-pokaz">Pokaż</button>
+        </div>
+        <table id="tabela-obecnosci-wszystkich">
+            <thead><tr><th>Kiedy</th><th>Kto</th><th>Wydarzenie</th><th>Zaliczone jako</th><th>Punkty</th></tr></thead>
+            <tbody></tbody>
+        </table>
     </div>
 
     <div id="tab-content-karty" class="card hidden">
@@ -133,6 +160,114 @@
             <thead><tr><th>Kod plakietki</th><th>Ministrant</th><th>Wygenerowano</th><th>Status</th><th>Akcja</th></tr></thead>
             <tbody></tbody>
         </table>
+    </div>
+
+
+    <div id="tab-content-zgloszenia" class="card hidden">
+        <h3>Zgłoszenia specjalnych obecności (Pogrzeb / Ślub / Inne)</h3>
+        <p style="color:var(--text-dim)">Ministrant tylko zgłasza w Kiosku — o liczbie punktów i zatwierdzeniu decyduje wyłącznie Admin lub Ksiądz.</p>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <select id="zg-filtr-status">
+                <option value="oczekujace">Oczekujące</option>
+                <option value="zatwierdzone">Zatwierdzone</option>
+                <option value="odrzucone">Odrzucone</option>
+                <option value="">Wszystkie</option>
+            </select>
+            <button class="btn btn-secondary" style="width:auto" id="btn-zg-odswiez">Odśwież</button>
+        </div>
+        <table id="tabela-zgloszenia">
+            <thead><tr><th>Kiedy</th><th>Kto</th><th>Typ</th><th>Status</th><th>Punkty</th><th>Rozpatrzone przez</th><th>Akcja</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div id="tab-content-kioski" class="card hidden">
+        <h3>Monitoring Kiosków</h3>
+        <p style="color:var(--text-dim)">Każdy Kiosk wysyła sygnał kontrolny co 15 minut (wyrównany do zegara). Status OFFLINE oznacza brak sygnału od ponad 20 minut. Pola, których przeglądarka danego urządzenia nie udostępnia, pokazują "niedostępne" — nic tu nie jest zmyślane.</p>
+        <button class="btn btn-secondary" style="width:auto; margin-bottom:12px;" id="btn-kioski-odswiez">Odśwież</button>
+        <table id="tabela-kioski">
+            <thead><tr><th>Nazwa</th><th>Status</th><th>Ostatni ping</th><th>Wersja</th><th>Diagnostyka</th><th>Akcja</th></tr></thead>
+            <tbody></tbody>
+        </table>
+
+        <div id="panel-historia-kiosku" class="card hidden" style="margin-top:16px;">
+            <div class="top-bar">
+                <h3 id="historia-kiosku-tytul">Historia pingów</h3>
+                <button class="btn btn-secondary" style="width:auto" id="btn-zamknij-historie-kiosku">Zamknij</button>
+            </div>
+            <table>
+                <thead><tr><th>Kiedy (serwer)</th><th>Zegar urządzenia</th><th>Wersja</th><th>Online (navigator)</th><th>Sieć</th><th>Kolejka offline</th></tr></thead>
+                <tbody id="tabela-historia-kiosku"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="tab-content-baza" class="card hidden">
+        <div class="top-bar">
+            <h3>📊 Baza danych — czytelny podgląd</h3>
+            <button class="btn" style="width:auto" id="btn-baza-synchronizuj">🔄 Synchronizuj teraz</button>
+        </div>
+        <div id="baza-sync-status" style="margin-bottom:10px;"></div>
+        <p style="color:var(--text-dim); font-size:0.9rem;">Wszystkie dane systemu w jednym miejscu, bez surowego JSON-a. "Synchronizuj teraz" odświeża ten widok i zleca wszystkim Kioskom, które akurat mają połączenie, natychmiastowe sprawdzenie poleceń i wysłanie zaległych danych (urządzenia offline odbiorą je, gdy wrócą do sieci).</p>
+
+        <div class="subtabs" style="margin-top:14px;">
+            <button class="active" data-podtab="uzytkownicy">Użytkownicy</button>
+            <button data-podtab="plakietki">Plakietki</button>
+            <button data-podtab="obecnosci">Obecności</button>
+            <button data-podtab="logowania">Logowania</button>
+            <button data-podtab="kioski-baza">Kioski / Pingi</button>
+            <button data-podtab="synchronizacja">Oczek. synchronizacje</button>
+        </div>
+
+        <input type="text" id="baza-szukaj" placeholder="🔍 Szukaj (kod, imię, nazwa, typ...)">
+
+        <div id="podtab-uzytkownicy">
+            <table id="tabela-baza-uzytkownicy">
+                <thead><tr><th>Kod</th><th>Imię i nazwisko</th><th>Rola</th><th>Status</th><th>Blokada</th><th>PIN</th><th>Pkt (mies.)</th><th>Log. dom</th><th>Log. Kiosk</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="podtab-plakietki" class="hidden">
+            <table id="tabela-baza-plakietki">
+                <thead><tr><th>Kod plakietki</th><th>Ministrant</th><th>Status</th><th>Wygenerowano</th><th>Unieważniono</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="podtab-obecnosci" class="hidden">
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <select id="baza-ob-miesiac"></select>
+                <input type="number" id="baza-ob-rok" style="width:100px;">
+                <button class="btn btn-secondary" style="width:auto" id="btn-baza-ob-pokaz">Pokaż</button>
+            </div>
+            <table id="tabela-baza-obecnosci">
+                <thead><tr><th>Kiedy</th><th>Kto</th><th>Wydarzenie</th><th>Zaliczone jako</th><th>Punkty</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="podtab-logowania" class="hidden">
+            <table id="tabela-baza-logowania">
+                <thead><tr><th>Kiedy</th><th>Kod</th><th>Wynik</th><th>Powód</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="podtab-kioski-baza" class="hidden">
+            <table id="tabela-baza-kioski">
+                <thead><tr><th>Nazwa</th><th>Status</th><th>Ostatni ping</th><th>Wersja</th><th>Kolejka offline</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="podtab-synchronizacja" class="hidden">
+            <h4>Oczekujące zgłoszenia specjalne (Pogrzeb/Ślub/Inne)</h4>
+            <table id="tabela-baza-sync-zgloszenia">
+                <thead><tr><th>Kiedy</th><th>Kto</th><th>Typ</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <h4 style="margin-top:22px;">Kolejki offline na Kioskach (wg ostatniego pingu)</h4>
+            <table id="tabela-baza-sync-kioski">
+                <thead><tr><th>Kiosk</th><th>Oczekujące operacje</th><th>Ostatni ping</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="tab-content-bezpieczenstwo" class="card hidden">
@@ -182,6 +317,8 @@
         </table>
     </div>
 </div>
+
+<div class="app-version">v2.1.00</div>
 
 <script src="js/supabase-client.js"></script>
 <script src="js/app.js"></script>
