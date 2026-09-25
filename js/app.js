@@ -28,7 +28,7 @@ async function zaloguj() {
         return;
     }
 
-    const wynik = await wywolajRPC('zaloguj', { p_kod: kod, p_pin: pin });
+    const wynik = await wywolajRPC('zaloguj', { p_kod: kod, p_pin: pin, p_zrodlo: 'pwa' });
     if (!wynik.sukces) {
         status.textContent = wynik.blad;
         return;
@@ -65,33 +65,59 @@ function wyloguj(e) {
     pokazWidok(widokLogin);
 }
 
+const NAZWY_MIESIECY = ['', 'Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+
+function wypelnijSelektorMiesiecy(selectEl, wybranyMiesiac) {
+    selectEl.innerHTML = NAZWY_MIESIECY.slice(1).map((nazwa, i) =>
+        `<option value="${i + 1}" ${i + 1 === wybranyMiesiac ? 'selected' : ''}>${nazwa}</option>`
+    ).join('');
+}
+
 // --- PANEL MINISTRANTA ---
 async function pokazPanelMinistranta() {
     pokazWidok(widokMinistrant);
     document.getElementById('mm-imie').textContent = `${sesja.imie} ${sesja.nazwisko} (${sesja.kod})`;
 
-    const { data: historia } = await supabaseClient
-        .from('historia_miesiac')
-        .select('*')
-        .eq('ministrant_id', sesja.id)
-        .order('data_zapisu', { ascending: false });
-
-    const sumaPunktow = (historia || []).reduce((s, h) => s + h.punkty, 0);
-    document.getElementById('mm-punkty').textContent = sumaPunktow;
-
-    const tbodyHist = document.querySelector('#mm-historia tbody');
-    tbodyHist.innerHTML = (historia || []).map(h =>
-        `<tr><td>${h.nazwa}</td><td>${new Date(h.data_wydarzenia).toLocaleDateString('pl-PL')}</td><td>+${h.punkty} pkt</td></tr>`
-    ).join('') || '<tr><td colspan="3">Brak obecności w tym miesiącu.</td></tr>';
+    const teraz = new Date();
+    wypelnijSelektorMiesiecy(document.getElementById('mm-hist-miesiac'), teraz.getMonth() + 1);
+    document.getElementById('mm-hist-rok').value = teraz.getFullYear();
 
     const { data: ranking } = await supabaseClient.from('ranking_miesiac').select('*').order('pozycja');
+    const wlasnyWiersz = (ranking || []).find(r => r.ministrant_id === sesja.id);
+    document.getElementById('mm-punkty').textContent = wlasnyWiersz ? wlasnyWiersz.punkty_miesiac : 0;
+
     const tbodyRank = document.querySelector('#mm-ranking tbody');
     tbodyRank.innerHTML = (ranking || []).map(r =>
         `<tr class="${r.ministrant_id === sesja.id ? 'podswietlone' : ''}">
             <td>${r.pozycja}.</td><td>${r.imie} ${r.nazwisko}</td><td>${r.punkty_miesiac} pkt</td>
         </tr>`
     ).join('');
+
+    await pokazMojaHistorie();
 }
+
+async function pokazMojaHistorie() {
+    const miesiac = parseInt(document.getElementById('mm-hist-miesiac').value);
+    const rok = parseInt(document.getElementById('mm-hist-rok').value);
+    const tbody = document.querySelector('#mm-historia tbody');
+    const sumaEl = document.getElementById('mm-hist-suma');
+
+    const wynik = await wywolajRPC('moja_historia_miesiac', { p_kod: sesja.kod, p_pin: sesja.pin, p_rok: rok, p_miesiac: miesiac });
+    if (!wynik.sukces) {
+        tbody.innerHTML = `<tr><td colspan="4">❌ ${wynik.blad}</td></tr>`;
+        sumaEl.textContent = '';
+        return;
+    }
+    sumaEl.textContent = `Suma za ${NAZWY_MIESIECY[miesiac]} ${rok}: ${wynik.suma_punktow} pkt`;
+    tbody.innerHTML = (wynik.historia || []).map(h => `
+        <tr>
+            <td>${h.nazwa}</td>
+            <td>${new Date(h.data_wydarzenia).toLocaleDateString('pl-PL')}</td>
+            <td>${h.zaliczone_jako}</td>
+            <td>+${h.punkty} pkt</td>
+        </tr>`).join('') || '<tr><td colspan="4">Brak obecności w tym miesiącu.</td></tr>';
+}
+document.getElementById('btn-mm-pokaz-historie').addEventListener('click', pokazMojaHistorie);
 
 document.getElementById('btn-zmien-pin').addEventListener('click', async () => {
     const stary = document.getElementById('pin-stary').value.trim();
@@ -123,6 +149,11 @@ async function pokazPanelAdmina() {
     pokazWidok(widokAdmin);
     if (!sesja.is_admin) {
         document.getElementById('tab-karty').classList.add('hidden'); // tylko Admin generuje karty
+        document.getElementById('mi-formularz-admin-only').classList.add('hidden'); // Ksiądz nie dodaje/edytuje kont
+        document.querySelectorAll('.admin-only-akcja').forEach(el => el.classList.add('hidden'));
+    } else {
+        document.getElementById('mi-formularz-admin-only').classList.remove('hidden');
+        document.querySelectorAll('.admin-only-akcja').forEach(el => el.classList.remove('hidden'));
     }
     await odswiezKalendarz();
     await odswiezListeMinistrantow();
@@ -132,13 +163,363 @@ document.querySelectorAll('.tabs button').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['kalendarz', 'ministranci', 'karty', 'bezpieczenstwo'].forEach(t => {
+        ['kalendarz', 'ministranci', 'obecnosci', 'karty', 'zgloszenia', 'kioski', 'baza', 'bezpieczenstwo'].forEach(t => {
             document.getElementById('tab-content-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
         });
         if (btn.dataset.tab === 'bezpieczenstwo') odswiezBezpieczenstwo();
         if (btn.dataset.tab === 'karty') odswiezRosterKart();
+        if (btn.dataset.tab === 'obecnosci') odswiezObecnosciWszystkich();
+        if (btn.dataset.tab === 'zgloszenia') odswiezZgloszenia();
+        if (btn.dataset.tab === 'kioski') odswiezKioski();
+        if (btn.dataset.tab === 'baza') odswiezBazaDanych();
     });
 });
+
+async function odswiezZgloszenia() {
+    const status = document.getElementById('zg-filtr-status').value || null;
+    const wynik = await wywolajRPC('lista_zgloszen', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_status: status });
+    const tbody = document.querySelector('#tabela-zgloszenia tbody');
+    if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="7">❌ ${wynik.blad}</td></tr>`; return; }
+
+    const NAZWY = { pogrzeb: '⚱️ Pogrzeb', slub: '💍 Ślub', inne: '📋 Inne' };
+    const KOLOR_STATUSU = { oczekujace: 'var(--accent-4)', zatwierdzone: 'var(--ok)', odrzucone: 'var(--err)' };
+    const ETYKIETA_STATUSU = { oczekujace: 'oczekujące', zatwierdzone: 'zatwierdzone', odrzucone: 'odrzucone' };
+
+    tbody.innerHTML = (wynik.dane || []).map(z => {
+        let akcja = '—';
+        if (z.status === 'oczekujace') {
+            const disabled = (z.ministrant_is_admin && !sesja.is_admin) ? 'disabled title="Nie można rozpatrzyć zgłoszenia Admina"' : '';
+            akcja = `
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="number" min="0" placeholder="pkt" style="width:70px; margin:0;" id="zg-pkt-${z.id}" ${disabled}>
+                    <button class="btn" style="width:auto; padding:6px 10px;" ${disabled} onclick="rozpatrzZgloszenie('${z.id}', 'zatwierdz')">Zatwierdź</button>
+                    <button class="btn btn-danger" style="width:auto; padding:6px 10px;" ${disabled} onclick="rozpatrzZgloszenie('${z.id}', 'odrzuc')">Odrzuć</button>
+                </div>`;
+        }
+        return `
+        <tr>
+            <td>${new Date(z.data_zgloszenia).toLocaleString('pl-PL')}</td>
+            <td>${z.imie} ${z.nazwisko} (${z.ministrant_kod})${z.ministrant_is_admin ? ' 👑' : ''}</td>
+            <td>${NAZWY[z.typ] || z.typ}</td>
+            <td style="color:${KOLOR_STATUSU[z.status]}">${ETYKIETA_STATUSU[z.status]}</td>
+            <td>${z.punkty ?? '—'}</td>
+            <td style="font-size:0.85rem; color:var(--text-dim);">${z.rozpatrzone_przez_kod ? `${z.rozpatrzone_przez_imie} ${z.rozpatrzone_przez_nazwisko}` : '—'}</td>
+            <td>${akcja}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="7">Brak zgłoszeń.</td></tr>';
+}
+document.getElementById('btn-zg-odswiez').addEventListener('click', odswiezZgloszenia);
+document.getElementById('zg-filtr-status').addEventListener('change', odswiezZgloszenia);
+
+async function rozpatrzZgloszenie(id, decyzja) {
+    let punkty = null;
+    if (decyzja === 'zatwierdz') {
+        const pole = document.getElementById(`zg-pkt-${id}`);
+        punkty = parseInt(pole.value);
+        if (isNaN(punkty) || punkty < 0) { alert('Podaj liczbę punktów (0 lub więcej).'); return; }
+    }
+    if (decyzja === 'odrzuc' && !confirm('Odrzucić to zgłoszenie?')) return;
+
+    const wynik = await wywolajRPC('rozpatrz_zgloszenie', {
+        p_kod_admina: sesja.kod, p_pin_admina: sesja.pin,
+        p_zgloszenie_id: id, p_decyzja: decyzja, p_punkty: punkty
+    });
+    if (!wynik.sukces) alert('❌ ' + wynik.blad);
+    await odswiezZgloszenia();
+}
+
+// --- MONITORING KIOSKÓW ---
+let biezacaListaKioskow = [];
+const NIEDOSTEPNE = '<span style="color:var(--text-dim)">niedostępne</span>';
+
+function formatujDiagnostykeKiosku(d) {
+    if (!d) return NIEDOSTEPNE;
+    const wiersze = [
+        ['Online (navigator)', d.online_navigator === true ? '✅ tak' : d.online_navigator === false ? '❌ nie' : null],
+        ['Sieć potwierdzona (kiosk)', d.online_zweryfikowane === true ? '✅ tak' : d.online_zweryfikowane === false ? '❌ nie' : null],
+        ['Typ sieci', d.siec_effective_type || d.siec_typ || null],
+        ['Prędkość / RTT', (d.siec_downlink_mbps != null || d.siec_rtt_ms != null) ? `${d.siec_downlink_mbps ?? '?'} Mb/s, ${d.siec_rtt_ms ?? '?'} ms` : null],
+        ['Rozdzielczość', d.rozdzielczosc || null],
+        ['Karta widoczna', d.karta_widoczna === true ? 'tak' : d.karta_widoczna === false ? 'nie (w tle)' : null],
+        ['Bateria', d.bateria_procent != null ? `${d.bateria_procent}%${d.bateria_ladowanie ? ' (ładuje się)' : ''}` : null],
+        ['Rdzenie CPU / RAM', (d.rdzenie_cpu != null || d.pamiec_gb != null) ? `${d.rdzenie_cpu ?? '?'} rdzeni, ${d.pamiec_gb ?? '?'} GB` : null],
+        ['Kolejka offline', d.offline_kolejka_dlugosc != null ? `${d.offline_kolejka_dlugosc} oczek.` : null],
+        ['Język', d.jezyk || null]
+    ];
+    return '<div style="font-size:0.8rem; line-height:1.5;">' + wiersze.map(([etykieta, wartosc]) =>
+        `<div><b>${etykieta}:</b> ${wartosc ?? NIEDOSTEPNE}</div>`
+    ).join('') + '</div>';
+}
+
+async function odswiezKioski() {
+    const wynik = await wywolajRPC('admin_lista_kioskow', { p_kod: sesja.kod, p_pin: sesja.pin });
+    const tbody = document.querySelector('#tabela-kioski tbody');
+    if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="6">❌ ${wynik.blad}</td></tr>`; return; }
+    biezacaListaKioskow = wynik.dane || [];
+
+    tbody.innerHTML = biezacaListaKioskow.map((k, i) => `
+        <tr>
+            <td>
+                <input type="text" value="${k.nazwa || ''}" id="kiosk-nazwa-${i}" style="margin:0; width:160px;">
+                <button class="btn btn-secondary" style="width:auto; padding:4px 8px; margin-top:4px;" onclick="zapiszNazweKiosku('${k.kiosk_id}', ${i})">Zapisz nazwę</button>
+            </td>
+            <td style="color:${k.online ? 'var(--ok)' : 'var(--err)'}">${k.online ? '🟢 ONLINE' : '🔴 OFFLINE'}</td>
+            <td style="font-size:0.85rem;">${k.ostatni_ping ? new Date(k.ostatni_ping).toLocaleString('pl-PL') : '— nigdy —'}</td>
+            <td>${k.ostatnia_wersja || NIEDOSTEPNE}</td>
+            <td>${formatujDiagnostykeKiosku(k.ostatnie_dane)}</td>
+            <td><button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="otworzHistorieKiosku('${k.kiosk_id}', '${(k.nazwa || k.kiosk_id).replace(/'/g, "")}')">Historia</button></td>
+        </tr>`).join('') || '<tr><td colspan="6">Żaden Kiosk nie wysłał jeszcze pingu.</td></tr>';
+}
+document.getElementById('btn-kioski-odswiez').addEventListener('click', odswiezKioski);
+
+async function zapiszNazweKiosku(kioskId, indeks) {
+    const nazwa = document.getElementById(`kiosk-nazwa-${indeks}`).value.trim();
+    const wynik = await wywolajRPC('admin_nazwij_kiosk', { p_kod: sesja.kod, p_pin: sesja.pin, p_kiosk_id: kioskId, p_nazwa: nazwa });
+    if (!wynik.sukces) alert('❌ ' + wynik.blad);
+    await odswiezKioski();
+}
+
+async function otworzHistorieKiosku(kioskId, nazwa) {
+    document.getElementById('historia-kiosku-tytul').textContent = `Historia pingów — ${nazwa}`;
+    document.getElementById('panel-historia-kiosku').classList.remove('hidden');
+    const wynik = await wywolajRPC('admin_historia_pingow', { p_kod: sesja.kod, p_pin: sesja.pin, p_kiosk_id: kioskId, p_limit: 100 });
+    const tbody = document.getElementById('tabela-historia-kiosku');
+    if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="6">❌ ${wynik.blad}</td></tr>`; return; }
+    tbody.innerHTML = (wynik.dane || []).map(p => {
+        const d = p.dane || {};
+        return `
+        <tr>
+            <td>${new Date(p.otrzymano).toLocaleString('pl-PL')}</td>
+            <td style="font-size:0.85rem; color:var(--text-dim);">${d.czas_urzadzenia ? new Date(d.czas_urzadzenia).toLocaleString('pl-PL') : NIEDOSTEPNE}</td>
+            <td>${p.wersja || NIEDOSTEPNE}</td>
+            <td>${d.online_navigator === true ? '✅' : d.online_navigator === false ? '❌' : NIEDOSTEPNE}</td>
+            <td>${d.siec_effective_type || d.siec_typ || NIEDOSTEPNE}</td>
+            <td>${d.offline_kolejka_dlugosc ?? NIEDOSTEPNE}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="6">Brak historii.</td></tr>';
+}
+document.getElementById('btn-zamknij-historie-kiosku').addEventListener('click', () => {
+    document.getElementById('panel-historia-kiosku').classList.add('hidden');
+});
+
+// ============================================================================
+// BAZA DANYCH — czytelny, przeszukiwalny podgląd wszystkiego naraz
+// ============================================================================
+const bazaDane = { uzytkownicy: [], plakietki: [], obecnosci: [], logowania: [], kioski: [], zgloszeniaOczekujace: [] };
+let bazaAktywnyPodtab = 'uzytkownicy';
+
+document.querySelectorAll('.subtabs button[data-podtab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.subtabs button[data-podtab]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        bazaAktywnyPodtab = btn.dataset.podtab;
+        ['uzytkownicy', 'plakietki', 'obecnosci', 'logowania', 'kioski-baza', 'synchronizacja'].forEach(t => {
+            document.getElementById('podtab-' + t).classList.toggle('hidden', t !== bazaAktywnyPodtab);
+        });
+        document.getElementById('baza-szukaj').value = '';
+        renderujAktywnyPodtabBazy();
+    });
+});
+
+document.getElementById('baza-szukaj').addEventListener('input', renderujAktywnyPodtabBazy);
+
+function pasujeDoSzukania(tekstSzukany, ...pola) {
+    if (!tekstSzukany) return true;
+    const s = tekstSzukany.toLowerCase();
+    return pola.some(p => (p == null ? '' : p).toString().toLowerCase().includes(s));
+}
+
+function renderujAktywnyPodtabBazy() {
+    const szukaj = document.getElementById('baza-szukaj').value.trim();
+    if (bazaAktywnyPodtab === 'uzytkownicy') renderujBazaUzytkownicy(szukaj);
+    else if (bazaAktywnyPodtab === 'plakietki') renderujBazaPlakietki(szukaj);
+    else if (bazaAktywnyPodtab === 'obecnosci') renderujBazaObecnosci(szukaj);
+    else if (bazaAktywnyPodtab === 'logowania') renderujBazaLogowania(szukaj);
+    else if (bazaAktywnyPodtab === 'kioski-baza') renderujBazaKioski(szukaj);
+    else if (bazaAktywnyPodtab === 'synchronizacja') renderujBazaSynchronizacja(szukaj);
+}
+
+async function odswiezBazaDanych() {
+    const teraz = new Date();
+    if (!document.getElementById('baza-ob-miesiac').value) {
+        wypelnijSelektorMiesiecy(document.getElementById('baza-ob-miesiac'), teraz.getMonth() + 1);
+        document.getElementById('baza-ob-rok').value = teraz.getFullYear();
+    }
+
+    const wyniki = await Promise.all([
+        wywolajRPC('admin_lista_ministrantow', { p_kod: sesja.kod, p_pin: sesja.pin }),
+        wywolajRPC('admin_lista_plakietek', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: null }),
+        wywolajRPC('historia_logowan', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_filtr_kod: null, p_limit: 300 }),
+        wywolajRPC('admin_lista_kioskow', { p_kod: sesja.kod, p_pin: sesja.pin }),
+        wywolajRPC('lista_zgloszen', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_status: 'oczekujace' })
+    ]);
+    const uzytkownicy = wyniki[0], plakietki = wyniki[1], logowania = wyniki[2], kioski = wyniki[3], zgloszenia = wyniki[4];
+
+    bazaDane.uzytkownicy = uzytkownicy.sukces ? uzytkownicy.dane : [];
+    bazaDane.plakietki = plakietki.sukces ? plakietki.dane : [];
+    bazaDane.logowania = logowania.sukces ? logowania.dane : [];
+    bazaDane.kioski = kioski.sukces ? kioski.dane : [];
+    bazaDane.zgloszeniaOczekujace = zgloszenia.sukces ? zgloszenia.dane : [];
+
+    await pokazBazaObecnosci();
+    renderujAktywnyPodtabBazy();
+}
+
+function renderujBazaUzytkownicy(szukaj) {
+    const dane = bazaDane.uzytkownicy.filter(function(m) { return pasujeDoSzukania(szukaj, m.kod, m.imie, m.nazwisko); });
+    document.querySelector('#tabela-baza-uzytkownicy tbody').innerHTML = dane.map(function(m) {
+        var rola = m.is_admin ? '👑 Admin' : (m.is_moderator ? '⛪ Ksiądz' : 'Ministrant');
+        var status = m.aktywny ? 'aktywny' : 'nieaktywny';
+        var kolorStatus = m.aktywny ? 'var(--ok)' : 'var(--err)';
+        var plakietkaInfo = m.liczba_aktywnych_plakietek > 0 ? (m.liczba_aktywnych_plakietek + ' aktywna') : '<span style="color:var(--text-dim)">brak</span>';
+        var logDom = m.ostatnie_logowanie_pwa ? new Date(m.ostatnie_logowanie_pwa).toLocaleString('pl-PL') : '—';
+        var logKiosk = m.ostatnie_logowanie_kiosk ? new Date(m.ostatnie_logowanie_kiosk).toLocaleString('pl-PL') : '—';
+        return '<tr>' +
+            '<td>' + m.kod + '</td>' +
+            '<td>' + m.imie + ' ' + m.nazwisko + '</td>' +
+            '<td>' + rola + '</td>' +
+            '<td style="color:' + kolorStatus + '">' + status + '</td>' +
+            '<td>' + plakietkaInfo + '</td>' +
+            '<td>' + (m.pin_jawny == null ? '—' : m.pin_jawny) + '</td>' +
+            '<td>' + m.punkty_miesiac + '</td>' +
+            '<td style="font-size:0.8rem; color:var(--text-dim);">' + logDom + '</td>' +
+            '<td style="font-size:0.8rem; color:var(--text-dim);">' + logKiosk + '</td>' +
+            '</tr>';
+    }).join('') || '<tr><td colspan="9">Brak wyników.</td></tr>';
+}
+
+function renderujBazaPlakietki(szukaj) {
+    const dane = bazaDane.plakietki.filter(function(p) { return pasujeDoSzukania(szukaj, p.kod_plakietki, p.ministrant_kod, p.imie, p.nazwisko); });
+    document.querySelector('#tabela-baza-plakietki tbody').innerHTML = dane.map(function(p) {
+        var status = p.aktywna ? 'aktywna' : 'unieważniona';
+        var kolor = p.aktywna ? 'var(--ok)' : 'var(--err)';
+        var uniewazniono = p.uniewazniona_kiedy ? new Date(p.uniewazniona_kiedy).toLocaleString('pl-PL') : '—';
+        return '<tr>' +
+            '<td>' + p.kod_plakietki + '</td>' +
+            '<td>' + p.imie + ' ' + p.nazwisko + ' (' + p.ministrant_kod + ')</td>' +
+            '<td style="color:' + kolor + '">' + status + '</td>' +
+            '<td style="font-size:0.85rem;">' + new Date(p.wygenerowano).toLocaleString('pl-PL') + '</td>' +
+            '<td style="font-size:0.85rem; color:var(--text-dim);">' + uniewazniono + '</td>' +
+            '</tr>';
+    }).join('') || '<tr><td colspan="5">Brak wyników.</td></tr>';
+}
+
+async function pokazBazaObecnosci() {
+    const miesiac = parseInt(document.getElementById('baza-ob-miesiac').value);
+    const rok = parseInt(document.getElementById('baza-ob-rok').value);
+    const wynik = await wywolajRPC('raport_miesiac', { p_kod: sesja.kod, p_pin: sesja.pin, p_rok: rok, p_miesiac: miesiac });
+    bazaDane.obecnosci = wynik.sukces ? wynik.historia : [];
+    if (bazaAktywnyPodtab === 'obecnosci') renderujBazaObecnosci(document.getElementById('baza-szukaj').value.trim());
+}
+document.getElementById('btn-baza-ob-pokaz').addEventListener('click', pokazBazaObecnosci);
+
+function renderujBazaObecnosci(szukaj) {
+    const dane = bazaDane.obecnosci.filter(function(h) { return pasujeDoSzukania(szukaj, h.kod, h.imie, h.nazwisko, h.nazwa, h.zaliczone_jako); });
+    document.querySelector('#tabela-baza-obecnosci tbody').innerHTML = dane.map(function(h) {
+        return '<tr>' +
+            '<td style="font-size:0.85rem;">' + new Date(h.data_zapisu).toLocaleString('pl-PL') + '</td>' +
+            '<td>' + h.imie + ' ' + h.nazwisko + ' (' + h.kod + ')</td>' +
+            '<td>' + h.nazwa + '</td>' +
+            '<td>' + h.zaliczone_jako + '</td>' +
+            '<td>+' + h.punkty + '</td>' +
+            '</tr>';
+    }).join('') || '<tr><td colspan="5">Brak wyników.</td></tr>';
+}
+
+function renderujBazaLogowania(szukaj) {
+    const dane = bazaDane.logowania.filter(function(l) { return pasujeDoSzukania(szukaj, l.kod, l.powod); });
+    document.querySelector('#tabela-baza-logowania tbody').innerHTML = dane.map(function(l) {
+        var wynikTekst = l.sukces ? '✅ sukces' : '❌ porażka';
+        var kolor = l.sukces ? 'var(--ok)' : 'var(--err)';
+        return '<tr>' +
+            '<td style="font-size:0.85rem;">' + new Date(l.kiedy).toLocaleString('pl-PL') + '</td>' +
+            '<td>' + l.kod + '</td>' +
+            '<td style="color:' + kolor + '">' + wynikTekst + '</td>' +
+            '<td>' + (l.powod || '—') + '</td>' +
+            '</tr>';
+    }).join('') || '<tr><td colspan="4">Brak wyników.</td></tr>';
+}
+
+function renderujBazaKioski(szukaj) {
+    const dane = bazaDane.kioski.filter(function(k) { return pasujeDoSzukania(szukaj, k.nazwa, k.kiosk_id); });
+    document.querySelector('#tabela-baza-kioski tbody').innerHTML = dane.map(function(k) {
+        var status = k.online ? '🟢 ONLINE' : '🔴 OFFLINE';
+        var kolor = k.online ? 'var(--ok)' : 'var(--err)';
+        var ostatniPing = k.ostatni_ping ? new Date(k.ostatni_ping).toLocaleString('pl-PL') : '—';
+        var kolejka = (k.ostatnie_dane && k.ostatnie_dane.offline_kolejka_dlugosc != null) ? k.ostatnie_dane.offline_kolejka_dlugosc : '—';
+        return '<tr>' +
+            '<td>' + (k.nazwa || k.kiosk_id) + '</td>' +
+            '<td style="color:' + kolor + '">' + status + '</td>' +
+            '<td style="font-size:0.85rem;">' + ostatniPing + '</td>' +
+            '<td>' + (k.ostatnia_wersja || '—') + '</td>' +
+            '<td>' + kolejka + '</td>' +
+            '</tr>';
+    }).join('') || '<tr><td colspan="5">Brak wyników.</td></tr>';
+}
+
+function renderujBazaSynchronizacja(szukaj) {
+    const NAZWY = { pogrzeb: '⚱️ Pogrzeb', slub: '💍 Ślub', inne: '📋 Inne' };
+    const zgl = bazaDane.zgloszeniaOczekujace.filter(function(z) { return pasujeDoSzukania(szukaj, z.imie, z.nazwisko, z.ministrant_kod, z.typ); });
+    document.querySelector('#tabela-baza-sync-zgloszenia tbody').innerHTML = zgl.map(function(z) {
+        return '<tr>' +
+            '<td style="font-size:0.85rem;">' + new Date(z.data_zgloszenia).toLocaleString('pl-PL') + '</td>' +
+            '<td>' + z.imie + ' ' + z.nazwisko + ' (' + z.ministrant_kod + ')</td>' +
+            '<td>' + (NAZWY[z.typ] || z.typ) + '</td>' +
+            '</tr>';
+    }).join('') || '<tr><td colspan="3">Brak oczekujących zgłoszeń.</td></tr>';
+
+    const kioskiZKolejka = bazaDane.kioski.filter(function(k) {
+        var dl = (k.ostatnie_dane && k.ostatnie_dane.offline_kolejka_dlugosc) || 0;
+        return dl > 0 && pasujeDoSzukania(szukaj, k.nazwa, k.kiosk_id);
+    });
+    document.querySelector('#tabela-baza-sync-kioski tbody').innerHTML = kioskiZKolejka.map(function(k) {
+        var ostatniPing = k.ostatni_ping ? new Date(k.ostatni_ping).toLocaleString('pl-PL') : '—';
+        return '<tr>' +
+            '<td>' + (k.nazwa || k.kiosk_id) + '</td>' +
+            '<td>' + k.ostatnie_dane.offline_kolejka_dlugosc + '</td>' +
+            '<td style="font-size:0.85rem;">' + ostatniPing + '</td>' +
+            '</tr>';
+    }).join('') || '<tr><td colspan="3">Żaden Kiosk nie zgłasza obecnie zaległej kolejki offline.</td></tr>';
+}
+
+document.getElementById('btn-baza-synchronizuj').addEventListener('click', async () => {
+    const status = document.getElementById('baza-sync-status');
+    status.textContent = '⏳ Zlecam synchronizację i odświeżam dane…';
+    const wynik = await wywolajRPC('admin_wymus_synchronizacje', { p_kod: sesja.kod, p_pin: sesja.pin });
+    await odswiezBazaDanych();
+    status.textContent = wynik.sukces
+        ? '✅ Zlecono. Kioski, które mają teraz połączenie, odbiorą polecenie w ciągu ok. 20 sekund i wyślą zaległe dane. Urządzenia offline zrobią to, gdy wrócą do sieci.'
+        : ('❌ ' + wynik.blad);
+});
+
+async function odswiezObecnosciWszystkich() {
+    const teraz = new Date();
+    const selMiesiac = document.getElementById('ob-miesiac');
+    if (!selMiesiac.value) {
+        wypelnijSelektorMiesiecy(selMiesiac, teraz.getMonth() + 1);
+        document.getElementById('ob-rok').value = teraz.getFullYear();
+    }
+    await pokazObecnosciWszystkich();
+}
+
+async function pokazObecnosciWszystkich() {
+    const miesiac = parseInt(document.getElementById('ob-miesiac').value);
+    const rok = parseInt(document.getElementById('ob-rok').value);
+    const tbody = document.querySelector('#tabela-obecnosci-wszystkich tbody');
+
+    const wynik = await wywolajRPC('raport_miesiac', { p_kod: sesja.kod, p_pin: sesja.pin, p_rok: rok, p_miesiac: miesiac });
+    if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="5">❌ ${wynik.blad}</td></tr>`; return; }
+
+    tbody.innerHTML = (wynik.historia || []).map(h => `
+        <tr>
+            <td>${new Date(h.data_zapisu).toLocaleString('pl-PL')}</td>
+            <td>${h.imie} ${h.nazwisko} (${h.kod})</td>
+            <td>${h.nazwa}</td>
+            <td>${h.zaliczone_jako}</td>
+            <td>+${h.punkty}</td>
+        </tr>`).join('') || '<tr><td colspan="5">Brak obecności w tym miesiącu.</td></tr>';
+}
+document.getElementById('btn-ob-pokaz').addEventListener('click', pokazObecnosciWszystkich);
 
 // Kalendarz
 document.getElementById('nowe-blok').addEventListener('change', async (e) => {
@@ -284,29 +665,38 @@ async function przelaczRoleModeratora(id, nowaWartosc) {
 async function odswiezListeMinistrantow() {
     const wynik = await wywolajRPC('admin_lista_ministrantow', { p_kod: sesja.kod, p_pin: sesja.pin });
     if (!wynik.sukces) {
-        document.querySelector('#tabela-ministranci tbody').innerHTML = `<tr><td colspan="7">❌ ${wynik.blad}</td></tr>`;
+        document.querySelector('#tabela-ministranci tbody').innerHTML = `<tr><td colspan="9">❌ ${wynik.blad}</td></tr>`;
         return;
     }
     biezacaListaMinistrantow = wynik.dane || [];
-    document.querySelector('#tabela-ministranci tbody').innerHTML = biezacaListaMinistrantow.map(m => `
+    document.querySelector('#tabela-ministranci tbody').innerHTML = biezacaListaMinistrantow.map(m => {
+        const ostatnieLogowanie = m.ostatnie_logowanie_pwa ? new Date(m.ostatnie_logowanie_pwa).toLocaleString('pl-PL') : '— nigdy —';
+        const ostatniKiosk = m.ostatnie_logowanie_kiosk ? new Date(m.ostatnie_logowanie_kiosk).toLocaleString('pl-PL') : '— nigdy —';
+        let akcje = `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="otworzPlakietki('${m.id}', '${m.imie} ${m.nazwisko}')">Plakietki</button>`;
+        if (sesja.is_admin && !m.is_admin) {
+            akcje = `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="rozpocznijEdycjeMinistranta('${m.id}')">Edytuj</button>` + akcje;
+            akcje += m.is_moderator
+                ? `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="przelaczRoleModeratora('${m.id}', false)">Odbierz rolę Księdza</button>`
+                : `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="przelaczRoleModeratora('${m.id}', true)">Nadaj rolę Księdza</button>`;
+            akcje += m.aktywny
+                ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="dezaktywujMinistranta('${m.id}')">Dezaktywuj</button>`
+                : `<button class="btn" style="width:auto; padding:6px 10px;" onclick="przywrocMinistranta('${m.id}')">Przywróć</button>`;
+        } else if (m.is_admin) {
+            akcje += ` <span style="color:var(--text-dim); font-size:0.8rem;">konto chronione</span>`;
+        }
+        return `
         <tr>
             <td>${m.kod}</td>
             <td>${m.imie} ${m.nazwisko}${m.is_admin ? ' 👑' : ''}${m.is_moderator ? ' ⛪' : ''}</td>
             <td>${m.pin_jawny ?? '—'}</td>
             <td>${m.punkty_miesiac}</td>
+            <td style="font-size:0.85rem; color:var(--text-dim);">${ostatnieLogowanie}</td>
+            <td style="font-size:0.85rem; color:var(--text-dim);">${ostatniKiosk}</td>
             <td style="color:${m.aktywny ? 'var(--ok)' : 'var(--err)'}">${m.aktywny ? 'aktywny' : 'nieaktywny'}</td>
             <td>${m.liczba_aktywnych_plakietek}</td>
-            <td style="white-space:nowrap;">
-                <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="rozpocznijEdycjeMinistranta('${m.id}')">Edytuj</button>
-                <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="otworzPlakietki('${m.id}', '${m.imie} ${m.nazwisko}')">Plakietki</button>
-                ${!m.is_admin ? (m.is_moderator
-                    ? `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="przelaczRoleModeratora('${m.id}', false)">Odbierz rolę Księdza</button>`
-                    : `<button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="przelaczRoleModeratora('${m.id}', true)">Nadaj rolę Księdza</button>`) : ''}
-                ${m.aktywny
-                    ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="dezaktywujMinistranta('${m.id}')">Dezaktywuj</button>`
-                    : `<button class="btn" style="width:auto; padding:6px 10px;" onclick="przywrocMinistranta('${m.id}')">Przywróć</button>`}
-            </td>
-        </tr>`).join('') || '<tr><td colspan="7">Brak ministrantów.</td></tr>';
+            <td style="white-space:nowrap;">${akcje}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="9">Brak ministrantów.</td></tr>';
 }
 
 async function dezaktywujMinistranta(id) {
@@ -340,12 +730,16 @@ async function odswiezPanelPlakietek() {
     const wynik = await wywolajRPC('admin_lista_plakietek', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: plakietkiDlaMinistrantaId });
     const tbody = document.getElementById('tabela-plakietki');
     if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="4">❌ ${wynik.blad}</td></tr>`; return; }
-    tbody.innerHTML = (wynik.dane || []).map(p => `
+    window._plakietkiPanelu = wynik.dane || [];
+    tbody.innerHTML = window._plakietkiPanelu.map((p, i) => `
         <tr>
             <td>${p.kod_plakietki}</td>
             <td>${new Date(p.wygenerowano).toLocaleString('pl-PL')}</td>
             <td style="color:${p.aktywna ? 'var(--ok)' : 'var(--err)'}">${p.aktywna ? 'aktywna' : 'unieważniona'}</td>
-            <td>${p.aktywna ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="uniewaznijPlakietkeZPanelu('${p.kod_plakietki}')">Unieważnij</button>` : '—'}</td>
+            <td style="white-space:nowrap;">
+                <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="pokazPodgladPojedynczej(window._plakietkiPanelu[${i}])">Podgląd</button>
+                ${(p.aktywna && sesja.is_admin) ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="uniewaznijPlakietkeZPanelu('${p.kod_plakietki}')">Unieważnij</button>` : ''}
+            </td>
         </tr>`).join('') || '<tr><td colspan="4">Brak wydanych plakietek.</td></tr>';
 }
 
@@ -561,91 +955,220 @@ document.getElementById('btn-generuj-pdf').addEventListener('click', async () =>
     const wybrani = rosterKart.filter(m => zaznaczeniDoWydruku.has(m.id));
     if (wybrani.length === 0) { status.textContent = 'Zaznacz przynajmniej jednego ministranta.'; return; }
 
-    status.textContent = 'Generuję plakietki i PDF…';
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    let pierwsza = true;
+    status.textContent = 'Generuję plakietki…';
+    const wygenerowane = [];
 
     for (const m of wybrani) {
         // Nowa, unikalna plakietka dla tej karty (osobny kod w QR, można później unieważnić bez ruszania konta)
         const plakietka = await wywolajRPC('admin_generuj_plakietke', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: m.id });
         if (!plakietka.sukces) { status.textContent = `❌ Błąd dla ${m.kod}: ${plakietka.blad}`; continue; }
-
-        if (!pierwsza) doc.addPage();
-        pierwsza = false;
-
-        const dataGeneracji = new Date(plakietka.wygenerowano);
-        const dataTekst = dataGeneracji.toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-
-        // ================= GÓRA STRONY: plakietka (QR + dane) =================
-        doc.setDrawColor(150);
-        doc.roundedRect(20, 20, 170, 130, 6, 6);
-
-        doc.setFontSize(10);
-        doc.setTextColor(120);
-        doc.text('E-Ministranci — Karta Ministranta', 30, 34);
-        doc.setTextColor(0);
-
-        // Duży kod QR — zakodowany kod PLAKIETKI (nie kod logowania!), WYŁĄCZNIE QR
-        const qrDataUrl = await QRCode.toDataURL(plakietka.kod_plakietki, { margin: 1, width: 400 });
-        const qrRozmiar = 65;
-        doc.addImage(qrDataUrl, 'PNG', 105 - qrRozmiar / 2, 38, qrRozmiar, qrRozmiar);
-
-        doc.setFontSize(20);
-        doc.text(`${m.imie} ${m.nazwisko}`, 105, 114, { align: 'center' });
-        doc.setFontSize(13);
-        doc.setTextColor(90);
-        doc.text(`Kod: ${m.kod}`, 105, 123, { align: 'center' });
-        doc.setTextColor(0);
-
-        // Identyfikator TEJ konkretnej plakietki + data wygenerowania (do unieważnienia w razie zgubienia)
-        doc.setFontSize(7);
-        doc.setTextColor(160);
-        doc.text(`Nr plakietki: ${plakietka.kod_plakietki}`, 105, 141, { align: 'center' });
-        doc.text(`Wygenerowano: ${dataTekst}`, 105, 146, { align: 'center' });
-        doc.setTextColor(0);
-
-        // ================= LINIA DO PRZECIĘCIA =================
-        const yLinia = 165;
-        doc.setDrawColor(150);
-        doc.setLineDashPattern([2, 2], 0);
-        doc.line(15, yLinia, 195, yLinia);
-        doc.setLineDashPattern([], 0);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text('✂ — odetnij i przechowuj osobno —', 105, yLinia - 2, { align: 'center' });
-        doc.setTextColor(0);
-
-        // ================= DÓŁ STRONY: osobny, mało widoczny pasek z PIN-em =================
-        doc.roundedRect(75, yLinia + 15, 60, 30, 4, 4);
-        doc.setFontSize(8);
-        doc.setTextColor(140);
-        doc.text(`PIN — ${m.kod}`, 105, yLinia + 25, { align: 'center' });
-        doc.setFontSize(16);
-        doc.setTextColor(60);
-        doc.text(m.pin_jawny || '----', 105, yLinia + 36, { align: 'center' });
-        doc.setTextColor(0);
+        wygenerowane.push({ ...m, kod_plakietki: plakietka.kod_plakietki, wygenerowano: plakietka.wygenerowano, aktywna: true });
     }
 
-    doc.save('karty-ministranci.pdf');
-    status.textContent = `✅ Wygenerowano PDF dla ${wybrani.length} osób.`;
+    status.textContent = `✅ Wygenerowano ${wygenerowane.length} plakietek. Zobacz podgląd niżej, potem pobierz lub wydrukuj.`;
+    renderujPodgladWygenerowanych(wygenerowane);
     zaznaczeniDoWydruku.clear();
     renderujListeKart();
     await odswiezListeMinistrantow();
+    await odswiezWszystkiePlakietki();
 });
+
+// --- Podgląd świeżo wygenerowanych plakietek (przed pobraniem/wydrukiem) ---
+function renderujPodgladWygenerowanych(lista) {
+    let cont = document.getElementById('podglad-nowych-plakietek');
+    if (!cont) {
+        cont = document.createElement('div');
+        cont.id = 'podglad-nowych-plakietek';
+        document.getElementById('karty-status').after(cont);
+    }
+    if (lista.length === 0) { cont.innerHTML = ''; return; }
+
+    cont.innerHTML = `
+        <h3 style="margin-top:20px;">Podgląd wygenerowanych plakietek</h3>
+        <div id="miniaturki-plakietek" style="display:flex; flex-wrap:wrap; gap:14px;"></div>
+        <div style="display:flex; gap:8px; margin-top:14px;">
+            <button class="btn" id="btn-pobierz-wszystkie">📥 Pobierz wszystkie (PDF)</button>
+            <button class="btn btn-secondary" id="btn-drukuj-wszystkie">🖨️ Drukuj wszystkie</button>
+        </div>`;
+
+    const miniaturki = document.getElementById('miniaturki-plakietek');
+    lista.forEach(m => {
+        const wrap = document.createElement('div');
+        wrap.style.width = '210px';
+        renderujMiniaturkeA4(wrap, m);
+        miniaturki.appendChild(wrap);
+    });
+
+    document.getElementById('btn-pobierz-wszystkie').addEventListener('click', async () => {
+        const doc = await zbudujPdfDlaListy(lista);
+        doc.save('karty-ministranci.pdf');
+    });
+    document.getElementById('btn-drukuj-wszystkie').addEventListener('click', async () => {
+        const doc = await zbudujPdfDlaListy(lista);
+        drukujDokument(doc);
+    });
+}
+
+// --- Miniaturka A4 na ekranie (proporcje 210:297, do podglądu przed drukiem) ---
+async function renderujMiniaturkeA4(kontener, m) {
+    const dataTekst = formatujDatePelna(m.wygenerowano);
+    const qrDataUrl = await QRCode.toDataURL(m.kod_plakietki, { margin: 1, width: 300 });
+    kontener.innerHTML = `
+        <div style="background:white; color:#111; border-radius:6px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,0.4);
+                    aspect-ratio:210/297; width:100%; display:flex; flex-direction:column; position:relative; font-family:sans-serif;
+                    ${m.aktywna === false ? 'filter:grayscale(1);' : ''}">
+            ${m.aktywna === false ? `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:2;">
+                <div style="background:rgba(200,0,0,0.85); color:white; font-weight:800; padding:6px 16px; border-radius:6px; transform:rotate(-18deg); font-size:0.9rem;">UNIEWAŻNIONA</div>
+            </div>` : ''}
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6% 8% 2%; border-bottom:1px dashed #999;">
+                <div style="font-size:0.55rem; color:#888; margin-bottom:4%;">E-Ministranci — Karta Ministranta</div>
+                <img src="${qrDataUrl}" style="width:55%; aspect-ratio:1/1;">
+                <div style="font-weight:800; font-size:0.85rem; margin-top:4%; text-align:center;">${m.imie} ${m.nazwisko}</div>
+                <div style="font-size:0.7rem; color:#555;">Kod: ${m.kod}</div>
+            </div>
+            <div style="flex:0 0 22%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:2%;">
+                <div style="font-size:0.5rem; color:#999;">PIN — ${m.kod}</div>
+                <div style="font-size:1rem; font-weight:800; color:#333; letter-spacing:2px;">${m.pin_jawny || '----'}</div>
+                <div style="font-size:0.45rem; color:#aaa; margin-top:2%;">Nr plakietki: ${m.kod_plakietki}</div>
+                <div style="font-size:0.45rem; color:#aaa;">Wygenerowano: ${dataTekst}</div>
+            </div>
+        </div>`;
+}
+
+function formatujDatePelna(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString('pl-PL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+// --- Budowa PDF (A4) dla listy plakietek — góra: QR+kod+imię+nazwisko; dół: PIN+nr plakietki+data ---
+async function zbudujPdfDlaListy(lista) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    let pierwsza = true;
+    for (const m of lista) {
+        if (!pierwsza) doc.addPage();
+        pierwsza = false;
+        await narysujStronePlakietki(doc, m);
+    }
+    return doc;
+}
+
+async function narysujStronePlakietki(doc, m) {
+    const dataTekst = formatujDatePelna(m.wygenerowano);
+
+    // ================= GÓRA STRONY: kod QR, kod ministranta, imię, nazwisko =================
+    doc.setDrawColor(150);
+    doc.roundedRect(20, 20, 170, 120, 6, 6);
+
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text('E-Ministranci — Karta Ministranta', 30, 34);
+    doc.setTextColor(0);
+
+    const qrDataUrl = await QRCode.toDataURL(m.kod_plakietki, { margin: 1, width: 400 });
+    const qrRozmiar = 70;
+    doc.addImage(qrDataUrl, 'PNG', 105 - qrRozmiar / 2, 40, qrRozmiar, qrRozmiar);
+
+    doc.setFontSize(20);
+    doc.text(`${m.imie} ${m.nazwisko}`, 105, 122, { align: 'center' });
+    doc.setFontSize(13);
+    doc.setTextColor(90);
+    doc.text(`Kod: ${m.kod}`, 105, 132, { align: 'center' });
+    doc.setTextColor(0);
+
+    if (m.aktywna === false) {
+        doc.setFontSize(22);
+        doc.setTextColor(200, 0, 0);
+        doc.text('UNIEWAŻNIONA', 105, 90, { align: 'center', angle: 20 });
+        doc.setTextColor(0);
+    }
+
+    // ================= LINIA DO PRZECIĘCIA =================
+    const yLinia = 155;
+    doc.setDrawColor(150);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(15, yLinia, 195, yLinia);
+    doc.setLineDashPattern([], 0);
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text('✂ — odetnij i przechowuj osobno —', 105, yLinia - 2, { align: 'center' });
+    doc.setTextColor(0);
+
+    // ================= DÓŁ STRONY: PIN, kod identyfikacyjny plakietki, dokładna data wygenerowania =================
+    doc.roundedRect(45, yLinia + 15, 120, 45, 4, 4);
+    doc.setFontSize(9);
+    doc.setTextColor(140);
+    doc.text(`PIN — ${m.kod}`, 105, yLinia + 26, { align: 'center' });
+    doc.setFontSize(20);
+    doc.setTextColor(50);
+    doc.text(m.pin_jawny || '----', 105, yLinia + 38, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setTextColor(140);
+    doc.text(`Nr plakietki: ${m.kod_plakietki}`, 105, yLinia + 47, { align: 'center' });
+    doc.text(`Wygenerowano: ${dataTekst}`, 105, yLinia + 53, { align: 'center' });
+    doc.setTextColor(0);
+}
+
+function drukujDokument(doc) {
+    doc.autoPrint();
+    window.open(doc.output('bloburl'), '_blank');
+}
+
+// --- Modal: podgląd / pobierz / drukuj POJEDYNCZEJ, już istniejącej plakietki ---
+async function pokazPodgladPojedynczej(p) {
+    const dane = {
+        imie: p.imie, nazwisko: p.nazwisko, kod: p.ministrant_kod,
+        pin_jawny: p.pin_jawny, kod_plakietki: p.kod_plakietki,
+        wygenerowano: p.wygenerowano, aktywna: p.aktywna
+    };
+    let modal = document.getElementById('modal-podglad-plakietki');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-podglad-plakietki';
+        modal.style = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center; padding:20px;';
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+        <div class="card" style="max-width:340px; width:100%; max-height:90vh; overflow:auto;">
+            <div class="top-bar"><h3>Podgląd plakietki</h3><a href="#" id="btn-zamknij-modal-podglad">Zamknij ✕</a></div>
+            <div id="modal-miniaturka"></div>
+            <div style="display:flex; gap:8px; margin-top:14px;">
+                ${dane.aktywna ? `<button class="btn" id="modal-btn-pobierz">📥 Pobierz</button>
+                <button class="btn btn-secondary" id="modal-btn-drukuj">🖨️ Drukuj</button>` : '<p style="color:var(--text-dim)">Ta plakietka jest unieważniona — pobieranie/druk niedostępne.</p>'}
+            </div>
+        </div>`;
+    modal.classList.remove('hidden');
+    await renderujMiniaturkeA4(document.getElementById('modal-miniaturka'), dane);
+
+    document.getElementById('btn-zamknij-modal-podglad').addEventListener('click', (e) => { e.preventDefault(); modal.remove(); });
+    if (dane.aktywna) {
+        document.getElementById('modal-btn-pobierz').addEventListener('click', async () => {
+            const doc = await zbudujPdfDlaListy([dane]);
+            doc.save(`plakietka-${dane.kod}.pdf`);
+        });
+        document.getElementById('modal-btn-drukuj').addEventListener('click', async () => {
+            const doc = await zbudujPdfDlaListy([dane]);
+            drukujDokument(doc);
+        });
+    }
+}
 
 // --- Lista WSZYSTKICH wydanych plakietek (widok globalny, w tej samej zakładce) ---
 async function odswiezWszystkiePlakietki() {
     const wynik = await wywolajRPC('admin_lista_plakietek', { p_kod_admina: sesja.kod, p_pin_admina: sesja.pin, p_ministrant_id: null });
     const tbody = document.querySelector('#tabela-wszystkie-plakietki tbody');
     if (!wynik.sukces) { tbody.innerHTML = `<tr><td colspan="5">❌ ${wynik.blad}</td></tr>`; return; }
-    tbody.innerHTML = (wynik.dane || []).map(p => `
+    window._wszystkiePlakietki = wynik.dane || [];
+    tbody.innerHTML = (wynik.dane || []).map((p, i) => `
         <tr>
             <td>${p.kod_plakietki}</td>
             <td>${p.imie} ${p.nazwisko} (${p.ministrant_kod})</td>
             <td>${new Date(p.wygenerowano).toLocaleString('pl-PL')}</td>
             <td style="color:${p.aktywna ? 'var(--ok)' : 'var(--err)'}">${p.aktywna ? 'aktywna' : 'unieważniona'}</td>
-            <td>${p.aktywna ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="uniewaznijZListyGlownej('${p.kod_plakietki}')">Unieważnij</button>` : '—'}</td>
+            <td style="white-space:nowrap;">
+                <button class="btn btn-secondary" style="width:auto; padding:6px 10px;" onclick="pokazPodgladPojedynczej(window._wszystkiePlakietki[${i}])">Podgląd</button>
+                ${p.aktywna && sesja.is_admin ? `<button class="btn btn-danger" style="width:auto; padding:6px 10px;" onclick="uniewaznijZListyGlownej('${p.kod_plakietki}')">Unieważnij</button>` : ''}
+            </td>
         </tr>`).join('') || '<tr><td colspan="5">Brak wydanych plakietek.</td></tr>';
 }
 
