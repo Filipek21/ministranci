@@ -151,6 +151,7 @@ input:focus, select:focus {
 .status-msg { text-align: center; padding: 44px 20px; font-size: 1.4rem; font-weight: 700; }
 .status-msg.ok { color: var(--ok); }
 .status-msg.err { color: var(--err); }
+.status-msg.offline { color: var(--accent-4); }
 
 .big-counter { text-align: center; padding: 32px 0; }
 .big-counter .liczba {
@@ -171,8 +172,8 @@ tr { transition: background .12s ease; }
 tr:hover td { background: rgba(255,255,255,0.03); }
 tr.podswietlone td { background: rgba(124,92,255,0.22) !important; }
 
-.tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
-.tabs button {
+.tabs, .subtabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.tabs button, .subtabs button {
     flex: 1;
     min-width: 120px;
     padding: 11px;
@@ -184,7 +185,7 @@ tr.podswietlone td { background: rgba(124,92,255,0.22) !important; }
     cursor: pointer;
     transition: all .15s ease;
 }
-.tabs button.active {
+.tabs button.active, .subtabs button.active {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: white;
     border-color: transparent;
@@ -201,3 +202,17 @@ tr.podswietlone td { background: rgba(124,92,255,0.22) !important; }
 .top-bar a:hover { text-decoration: underline; }
 
 a { color: var(--accent-3); }
+
+.app-version {
+    position: fixed;
+    left: 10px;
+    bottom: 8px;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.35);
+    background: rgba(0,0,0,0.25);
+    padding: 3px 8px;
+    border-radius: 8px;
+    z-index: 999;
+    pointer-events: none;
+    font-family: monospace;
+}
