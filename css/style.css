@@ -21,11 +21,16 @@
 
 * { box-sizing: border-box; }
 
+html {
+    transition: font-size .15s ease;
+}
+
 body {
     margin: 0;
     font-family: 'Segoe UI', system-ui, sans-serif;
     color: var(--text);
     min-height: 100vh;
+    min-height: calc(var(--vh, 1vh) * 100); /* poprawka dla pasków adresu w przeglądarkach mobilnych */
     background:
         radial-gradient(circle at 15% 10%, rgba(124,92,255,0.35), transparent 40%),
         radial-gradient(circle at 85% 15%, rgba(255,111,179,0.28), transparent 45%),
@@ -203,10 +208,27 @@ tr.podswietlone td { background: rgba(124,92,255,0.22) !important; }
 
 a { color: var(--accent-3); }
 
+/* --- Czytelne formularze (etykiety nad polami, siatka kolumn) --- */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.form-pole { display: flex; flex-direction: column; gap: 6px; }
+.form-pole.pelna-szerokosc { grid-column: 1 / -1; }
+.form-etykieta { font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+.form-podpowiedz { font-size: 0.8rem; color: var(--text-dim); margin-top: -2px; }
+.form-pole input, .form-pole select { margin-bottom: 0; }
+.okno-czasowe { display: flex; align-items: flex-end; gap: 16px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; }
+.okno-czasowe .form-pole { flex: 1; }
+.okno-czasowe input[type=number] { width: 100%; text-align: center; font-weight: 700; }
+.przelacznik-blok { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; margin-bottom: 14px; cursor: pointer; }
+.przelacznik-blok input { width: auto; margin: 0; }
+@media (max-width: 560px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .okno-czasowe { flex-direction: column; align-items: stretch; }
+}
+
 .app-version {
     position: fixed;
     left: 10px;
-    bottom: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     font-size: 0.7rem;
     color: rgba(255,255,255,0.35);
     background: rgba(0,0,0,0.25);
