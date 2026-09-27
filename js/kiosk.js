@@ -24,7 +24,8 @@ let biezacaPlakietka = null; // kod plakietki użytej przy zgłoszeniu (audyt)
 // faktycznie i wiarygodnie udostępnia — żadnych zmyślonych parametrów sieci.
 // ============================================================================
 
-const WERSJA_APLIKACJI = 'v2.1.00'; // trzymaj zgodnie z .app-version w HTML
+// WERSJA_APLIKACJI pochodzi teraz z js/wersja.js (wczytywanego PRZED tym plikiem
+// w kiosk.html) — jedno centralne miejsce do zmiany numeru wersji.
 
 const KLUCZ_KIOSK_ID = 'em_kiosk_id';
 function pobierzIdKiosku() {
@@ -99,6 +100,56 @@ function msDoNastepnegoKwadransa() {
 // Uwaga: faktyczne uruchomienie harmonogramu pingów (wyslijPing() + setInterval)
 // znajduje się na samym końcu pliku, w sekcji "Start" — dopiero tam wszystkie
 // zmienne trybu offline (jestOffline, wczytajKolejkeOffline) są już zainicjowane.
+
+// ============================================================================
+// SPRAWDZANIE AKTUALIZACJI I BEZPIECZNE ODŚWIEŻENIE
+// Kiosk co kilka minut sprawdza, czy na serwerze (GitHub Pages) leży już
+// nowsza wersja js/wersja.js niż ta uruchomiona w przeglądarce. Jeśli tak —
+// odświeża się sam, ale WYŁĄCZNIE gdy nikt nic akurat nie robi (ekran
+// oczekiwania na skan) i Kiosk ma potwierdzone połączenie. Jeśli w danej
+// chwili trwa operacja, aktualizacja czeka i zostanie zastosowana zaraz po
+// jej zakończeniu (patrz hak w resetDoCzekania na końcu pliku).
+// ============================================================================
+
+let oczekujeNaAktualizacje = false;
+
+function czyBezpiecznyMomentNaAktualizacje() {
+    // Bezpiecznie WYŁĄCZNIE na ekranie oczekiwania na skan, z potwierdzonym
+    // połączeniem (odświeżanie offline zepsułoby działającą stronę bez sieci).
+    return !ekranCzekanie.classList.contains('hidden') && !jestOffline;
+}
+
+function wykonajBezpiecznaAktualizacje() {
+    // Nawigacja z unikalnym parametrem wymusza w przeglądarce pełne, świeże
+    // pobranie HTML-a (a wraz z nim — przez "?v=" w tagach — świeżych JS/CSS).
+    const url = window.location.pathname + '?odswiezono=' + Date.now();
+    window.location.href = url;
+}
+
+async function sprawdzAktualizacje() {
+    try {
+        const odpowiedz = await fetch('js/wersja.js?sprawdz=' + Date.now(), { cache: 'no-store' });
+        if (!odpowiedz.ok) return;
+        const tresc = await odpowiedz.text();
+        const dopasowanie = tresc.match(/WERSJA_APLIKACJI\s*=\s*['"]([^'"]+)['"]/);
+        if (!dopasowanie) return;
+        const wersjaNaSerwerze = dopasowanie[1];
+
+        if (wersjaNaSerwerze !== WERSJA_APLIKACJI) {
+            oczekujeNaAktualizacje = true;
+            document.getElementById('app-update-dostepna').classList.remove('hidden');
+            if (czyBezpiecznyMomentNaAktualizacje()) {
+                wykonajBezpiecznaAktualizacje();
+            }
+            // jeśli akurat trwa operacja — nic nie robimy teraz; resetDoCzekania
+            // sprawdzi oczekujeNaAktualizacje zaraz po jej zakończeniu
+        }
+    } catch (e) { /* brak sieci w tej chwili — spróbujemy przy następnym cyklu */ }
+}
+
+// Sprawdzaj co 5 minut — częściej nie ma sensu (GitHub Pages i tak cache'uje
+// pliki statyczne przez kilka minut), rzadziej opóźniałoby wykrycie wdrożenia.
+setInterval(sprawdzAktualizacje, 5 * 60 * 1000);
 
 // ============================================================================
 // TRYB OFFLINE — Kiosk musi działać bez internetu, korzystając z ostatnio
