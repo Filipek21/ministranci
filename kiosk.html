@@ -2,9 +2,16 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Kiosk — E-Ministranci</title>
-<link rel="stylesheet" href="css/style.css">
+<script src="js/wersja.js"></script>
+<script>
+    // Własne pliki JS/CSS doczepiają "?v=<WERSJA_APLIKACJI>" — dzięki temu
+    // podbicie wersji w JEDNYM miejscu (js/wersja.js) wymusza w przeglądarce
+    // pobranie świeżych plików zamiast starych z cache (cache busting).
+    document.write('<link rel="stylesheet" href="css/style.css?v=' + WERSJA_APLIKACJI + '">');
+    document.write('<script src="js/skalowanie.js?v=' + WERSJA_APLIKACJI + '"><\/script>');
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
 </head>
@@ -123,9 +130,13 @@
     </div>
 </div>
 
-<div class="app-version">v2.1.00</div>
+<div class="app-version">
+    v<span id="app-version-numer"></span>
+    <span id="app-update-dostepna" class="hidden" style="color:var(--accent-4); margin-left:6px;">🔄 aktualizacja czeka</span>
+</div>
 
+<script>document.getElementById('app-version-numer').textContent = WERSJA_APLIKACJI;</script>
 <script src="js/supabase-client.js"></script>
-<script src="js/kiosk.js"></script>
+<script>document.write('<script src="js/kiosk.js?v=' + WERSJA_APLIKACJI + '"><\/script>');</script>
 </body>
 </html>
