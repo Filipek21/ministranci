@@ -2,9 +2,13 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>E-Ministranci — Panel</title>
-<link rel="stylesheet" href="css/style.css">
+<script src="js/wersja.js"></script>
+<script>
+    document.write('<link rel="stylesheet" href="css/style.css?v=' + WERSJA_APLIKACJI + '">');
+    document.write('<script src="js/skalowanie.js?v=' + WERSJA_APLIKACJI + '"><\/script>');
+</script>
 <link rel="manifest" href="manifest.json">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -79,21 +83,51 @@
 
     <div id="tab-content-kalendarz" class="card">
         <h3>Dodaj wydarzenie</h3>
-        <select id="nowe-typ">
-            <option value="msza">Msza Święta</option>
-            <option value="nabozenstwo">Nabożeństwo (stałe)</option>
-            <option value="zbiorka">Zbiórka</option>
-        </select>
-        <input type="text" id="nowe-nazwa" placeholder="Nazwa (np. Msza niedzielna 9:00)">
-        <input type="datetime-local" id="nowe-data">
-        <label>Okno: minut przed <input type="number" id="nowe-przed" value="15" style="width:80px;display:inline-block"></label>
-        <label>minut po <input type="number" id="nowe-po" value="5" style="width:80px;display:inline-block"></label>
-        <label><input type="checkbox" id="nowe-blok"> To jest część bloku połączonego (Nabożeństwo + Msza)</label>
-        <div id="blok-parowanie" class="hidden">
-            <p style="color:var(--text-dim)">Aby połączyć w blok: dodaj najpierw pierwsze wydarzenie, potem drugie — wybierz je tutaj do sparowania.</p>
+        <p style="color:var(--text-dim); margin-top:-6px;">Każde wydarzenie automatycznie definiuje "okno czasowe", w którym ministranci mogą się zeskanować w Kiosku.</p>
+
+        <div class="form-grid">
+            <div class="form-pole">
+                <label class="form-etykieta" for="nowe-typ">Typ wydarzenia</label>
+                <select id="nowe-typ">
+                    <option value="msza">⛪ Msza Święta</option>
+                    <option value="nabozenstwo">🕯️ Nabożeństwo (stałe)</option>
+                    <option value="zbiorka">👥 Zbiórka</option>
+                </select>
+            </div>
+            <div class="form-pole">
+                <label class="form-etykieta" for="nowe-nazwa">Nazwa</label>
+                <input type="text" id="nowe-nazwa" placeholder="np. Msza niedzielna 9:00">
+            </div>
+            <div class="form-pole pelna-szerokosc">
+                <label class="form-etykieta" for="nowe-data">Data i godzina wydarzenia</label>
+                <input type="datetime-local" id="nowe-data">
+            </div>
+        </div>
+
+        <label class="form-etykieta" style="display:block; margin-bottom:8px;">Okno rejestracji w Kiosku</label>
+        <div class="okno-czasowe">
+            <div class="form-pole">
+                <label class="form-etykieta" for="nowe-przed">Minut przed</label>
+                <input type="number" id="nowe-przed" value="15">
+            </div>
+            <div style="color:var(--text-dim); padding-bottom:12px;">→</div>
+            <div class="form-pole">
+                <label class="form-etykieta" for="nowe-po">Minut po</label>
+                <input type="number" id="nowe-po" value="5">
+            </div>
+        </div>
+        <p class="form-podpowiedz" style="margin-bottom:16px;">Domyślnie: można się zeskanować od 15 minut przed rozpoczęciem do 5 minut po.</p>
+
+        <label class="przelacznik-blok">
+            <input type="checkbox" id="nowe-blok">
+            <span>🔗 To jest część <b>bloku połączonego</b> (np. Nabożeństwo + Msza tuż po nim)</span>
+        </label>
+        <div id="blok-parowanie" class="hidden" style="margin-bottom:14px;">
+            <p class="form-podpowiedz">Aby połączyć w blok: dodaj najpierw pierwsze wydarzenie, potem drugie — wybierz je tutaj do sparowania.</p>
             <select id="blok-z-czym"></select>
         </div>
-        <button class="btn" id="btn-dodaj-wydarzenie">Dodaj wydarzenie</button>
+
+        <button class="btn" id="btn-dodaj-wydarzenie">➕ Dodaj wydarzenie</button>
         <div id="wydarzenie-status"></div>
         <h3>Nadchodzące / ostatnie wydarzenia</h3>
         <table id="tabela-kalendarz"><thead><tr><th>Nazwa</th><th>Typ</th><th>Data</th><th>Okno</th></tr></thead><tbody></tbody></table>
@@ -318,9 +352,10 @@
     </div>
 </div>
 
-<div class="app-version">v2.1.00</div>
+<div class="app-version">v<span id="app-version-numer"></span></div>
 
+<script>document.getElementById('app-version-numer').textContent = WERSJA_APLIKACJI;</script>
 <script src="js/supabase-client.js"></script>
-<script src="js/app.js"></script>
+<script>document.write('<script src="js/app.js?v=' + WERSJA_APLIKACJI + '"><\/script>');</script>
 </body>
 </html>
