@@ -786,14 +786,15 @@ async function obslugaZeskanowanegoKodu(kodPlakietki) {
     if (trybZgloszenia) {
         $('btn-tryb-admin').classList.add('hidden');
         $('btn-tryb-moderator').classList.add('hidden');
-        $('btn-ok').classList.add('hidden');
+        $('btn-ok').classList.remove('hidden');   // v2.10.01: „Zatwierdź” zawsze widoczny (zgłoszenie specjalne też go potrzebuje)
         przyciskResetTryb = 'cancel';
         pinInfoTryb = 'report';
     } else {
         const rolaSpecjalna = wynik.is_admin || wynik.is_moderator;
         $('btn-tryb-admin').classList.toggle('hidden', !wynik.is_admin);
         $('btn-tryb-moderator').classList.toggle('hidden', !wynik.is_moderator);
-        $('btn-ok').classList.toggle('hidden', !!rolaSpecjalna);
+        // v2.10.01: „Zatwierdź” widoczny także dla Admina i Księdza — oni też zbierają punkty (przyciski roli obok służą do wejścia do panelu)
+        $('btn-ok').classList.remove('hidden');
         przyciskResetTryb = rolaSpecjalna ? 'logout' : 'reset';
         pinInfoTryb = null;
     }

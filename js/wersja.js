@@ -9,4 +9,4 @@
 // automatycznie wymusza w przeglądarce pobranie świeżych plików (cache busting)
 // bez ręcznej edycji czegokolwiek poza tym jednym miejscem.
 // ============================================================================
-const WERSJA_APLIKACJI = '2.10.00';
+const WERSJA_APLIKACJI = '2.10.01';
