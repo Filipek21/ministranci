@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
+<title>E-Ministranci</title>
+<script src="js/wersja.js"></script>
+<script>
+    document.write('<link rel="stylesheet" href="css/style.css?v=' + WERSJA_APLIKACJI + '">');
+    document.write('<script src="js/skalowanie.js?v=' + WERSJA_APLIKACJI + '"><\/script>');
+    document.write('<script src="js/animacje.js?v=' + WERSJA_APLIKACJI + '"><\/script>');
+</script>
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+<div class="container">
+    <div class="card" style="text-align:center; margin-top:60px;">
+        <h1>⛪ E-Ministranci</h1>
+        <div data-jezyk-switch style="margin-bottom:12px;"></div>
+        <p style="color:var(--text-dim)" data-i18n="index.subtitle">System obecności i punktacji</p>
+        <a href="app.html" class="btn btn-block"data-i18n="index.panel">Panel Ministranta / Admina</a>
+        <a href="kiosk.html" class="btn btn-secondary btn-block"data-i18n="index.kiosk">Tryb Kiosk (Zakrystia)</a>
+    </div>
+</div>
+<div class="app-version">v<span id="app-version-numer"></span></div>
+<script>document.write('<script src="js/i18n.js?v=' + WERSJA_APLIKACJI + '"><\/script>');</script>
+<script>document.write('<script src="js/powiadomienia.js?v=' + WERSJA_APLIKACJI + '"><\/script>');</script>
+<script>ustawNumerWersji();</script>
+</body>
+</html>
