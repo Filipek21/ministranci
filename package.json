@@ -1,5 +1,0 @@
-{
-  "name": "e-ministranci",
-  "private": true,
-  "scripts": { "test": "node --test tests/magazyn.test.mjs tests/synchronizacja.test.mjs tests/kontakt.test.mjs" }
-}
