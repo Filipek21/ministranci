@@ -1,0 +1,5 @@
+{
+  "name": "e-ministranci",
+  "private": true,
+  "scripts": { "test": "node --test tests/magazyn.test.mjs tests/synchronizacja.test.mjs tests/kontakt.test.mjs tests/paczki.test.mjs tests/asystent.test.mjs tests/asystent2.test.mjs tests/plakietki-ksiadz.test.mjs" }
+}
