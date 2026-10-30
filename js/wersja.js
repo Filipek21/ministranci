@@ -15,7 +15,7 @@ const WERSJA_APLIKACJI = '2.15.07';
 // AUTOR SYSTEMU — pokazuje się po najechaniu myszką (lub dotknięciu / fokusie) na numer wersji.
 // ▶▶▶ WPISZ TUTAJ SWOJE IMIĘ I NAZWISKO (jedyne miejsce do zmiany) ◀◀◀
 // ----------------------------------------------------------------------------
-const AUTOR_SYSTEMU = 'Imię Nazwisko';
+const AUTOR_SYSTEMU = 'Filip Głuch';
 
 // Wstawia numer wersji i podpowiedź z autorem. Wołana z każdej strony (index / app / kiosk) zamiast ręcznego textContent.
 function ustawNumerWersji() {
