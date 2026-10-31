@@ -10,6 +10,24 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import "./sanityzacja.js";
 
+// v2.15.07: nowsze modele Mistral zwracają message.content jako TABLICĘ fragmentów ({type:"text", text:"..."}),
+// a starsze jako zwykły tekst. Obsługujemy oba formaty — inaczej w oknie asystenta wychodzi „[object Object]”.
+function tekstZOdpowiedzi(c: unknown): string {
+    if (typeof c === "string") return c.trim();
+    if (Array.isArray(c)) {
+        return c.map((el) => {
+            if (typeof el === "string") return el;
+            if (el && typeof el === "object") {
+                const o = el as Record<string, unknown>;
+                if (typeof o.text === "string") return o.text;
+                if (o.type === "text" && o.text && typeof (o.text as Record<string, unknown>).value === "string") return String((o.text as Record<string, unknown>).value);
+            }
+            return "";   // fragmenty niebędące tekstem (np. „thinking”, referencje) pomijamy
+        }).join("").trim();
+    }
+    return "";
+}
+
 // deno-lint-ignore no-explicit-any
 const S = (globalThis as any).EMSanityzacja;
 const CORS = {
@@ -77,7 +95,7 @@ Deno.serve(async (req: Request) => {
         limit = limitZNaglowkow(r.headers) || limit;
         if (r.ok) {
             const j = await r.json().catch(() => null);
-            tekstOdp = String(j?.choices?.[0]?.message?.content ?? "").trim();
+            tekstOdp = tekstZOdpowiedzi(j?.choices?.[0]?.message?.content);
             if (!tekstOdp) { wynik = "api"; kodBledu = "api"; break; }
             uzyty = lista[i]; zapasowy = i > 0; wynik = "ok"; break;
         }
