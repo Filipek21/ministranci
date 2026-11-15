@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; upgrade-insecure-requests; script-src 'self'; connect-src 'self'; worker-src 'self'; media-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
+<title>E-Ministranci</title>
+<script src="js/ochrona-start.js?v=2.15.18"></script>
+<script src="js/straznik-sieci.js?v=2.15.18"></script>
+<script src="js/wersja.js?v=2.15.18"></script>
+<link rel="stylesheet" href="css/style.css?v=2.15.18">
+<script src="js/skalowanie.js?v=2.15.18"></script>
+<script src="js/animacje.js?v=2.15.18"></script>
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+<div class="container">
+    <div class="card" style="text-align:center; margin-top:60px;">
+        <h1>⛪ E-Ministranci</h1>
+        <div data-jezyk-switch style="margin-bottom:12px;"></div>
+        <p style="color:var(--text-dim)" data-i18n="index.subtitle">System obecności i punktacji</p>
+        <a href="app.html" class="btn btn-block"data-i18n="index.panel">Panel Ministranta / Admina</a>
+        <a href="kiosk.html" class="btn btn-secondary btn-block"data-i18n="index.kiosk">Tryb Kiosk (Zakrystia)</a>
+    </div>
+</div>
+<div class="app-version">v<span id="app-version-numer"></span></div>
+<script src="js/i18n.js?v=2.15.18"></script>
+<script src="js/powiadomienia.js?v=2.15.18"></script>
+<script src="js/start.js?v=2.15.18" data-opoznione="js/pomoc-ai.js js/pomoc.js"></script>
+</body>
+</html>
