@@ -1,0 +1,46 @@
+/* ============================================================================
+   v2.16.00 — Styl widgetu „Czytania na dziś” (Niedziela.pl). Ładowany TYLKO przez czytania.html (odizolowana ramka),
+   dlatego jest osobno od css/style.css. Klasy nd_* to klasy widgetu — kolory i czcionki można swobodnie zmieniać.
+   Kolor szat liturgicznych ustawia js/czytania-ramka.js jako zmienną --kolor-szat i atrybut data-kolor na <html>.
+   ============================================================================ */
+:root { --kolor-szat: #A9676C; --tlo: #ffffff; --tekst: #1c1c1c; --tlo-dodatki: #eeeeee; --akcent: #A9676C; --akcent-tlo: #D0A7AA; }
+@media (prefers-color-scheme: dark) {
+    :root { --tlo: #16122e; --tekst: #ece9f7; --tlo-dodatki: #231d45; --akcent: #7d4f55; --akcent-tlo: #5a3a40; }
+}
+html, body { margin: 0; padding: 0; background: var(--tlo); color: var(--tekst); }
+body { font-family: Georgia, 'Times New Roman', serif; }
+#czyt-ramka { padding: 10px 12px 24px; max-width: 760px; margin: 0 auto; }
+#czyt-status { margin: 24px 0; text-align: center; font-size: 15px; }
+#czyt-status.blad { color: #b3261e; font-weight: bold; }
+
+/* --- widget (dane od Niedziela.pl) --- */
+div#nd_liturgia { margin: 0; padding: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 15px; line-height: 1.45; width: 100%; }
+div#nd_liturgia_naglowek { margin: 0; padding: 0 0 5px 0; background-color: var(--akcent-tlo); border-top: 8px solid var(--kolor-szat); }
+div#nd_liturgia_czytania { margin: 0; padding: 0; }
+div#nd_liturgia_dodatki { margin: 0; padding: 5px; background-color: var(--tlo-dodatki); }
+p.nd_dzien { margin: 0; padding: 4px 6px; font-weight: bold; font-size: 15px; color: #fff; background-color: var(--akcent); }
+p.nd_msza { margin: 5px 0 0 0; padding: 0; font-weight: bold; font-size: 12px; }
+p.nd_msza_tyt { margin: 0; margin-top: 15px; padding: 2px; color: white; font-weight: bold; font-size: 16px; background-color: green; }
+span.nd_swieto { color: #fff; font-size: 16px; font-weight: bold; }
+span.nd_sigla { font-weight: bold; }
+p.nd_wstep { margin: 0; padding: 1px 6px; color: var(--tekst); font-size: 13px; }
+p.nd_czytanie_nazwa { margin: 12px 0 0 0; padding: 3px 6px; background-color: var(--akcent); font-weight: bold; font-size: 15px; color: #fff; }
+p.nd_czytanie_sigla { margin: 0 0 0 5px; padding: 0; margin-bottom: 5px; font-weight: bold; font-size: 13px; }
+p.nd_czytanie2 { margin: 0; padding: 0; font-weight: bold; font-size: 12px; }
+p.nd_czytanie_tyt { margin: 0; padding: 0; font-weight: bold; margin-left: 5px; }
+p.nd_czytanie_tresc { margin: 0; padding: 0; font-size: 14px; margin-left: 5px; }
+p.nd_czytanie_albo { margin: 0; padding: 0; font-size: 13px; margin-left: 5px; font-weight: bold; color: #d32f2f; }
+p.nd_czytanie_odp { margin: 5px 0; padding: 0; font-weight: bold; font-size: 13px; }
+p.nd_psalm { margin: 5px 0 5px 10px; padding: 0; font-size: 14px; }
+p.nd_psalm_refren { margin: 5px 0 5px 5px; padding: 0; font-weight: bold; font-size: 14px; }
+p.nd_czytanie_perykopa { margin: 5px 0 0 5px; padding: 0; font-weight: bold; font-size: 13px; color: #d32f2f; }
+p.nd_dodatki_tyt { margin: 0; padding: 5px 0 0 0; font-weight: bold; }
+p.nd_dodatki_styt { margin: 0; padding: 0; font-size: 13px; font-weight: bold; margin-left: 5px; }
+p.nd_dodatki_tresc { margin: 0; padding: 0; font-size: 13px; margin-left: 5px; }
+img.nd_banner_bottom { max-width: 100%; height: auto; }
+
+/* Widget wpisuje część stylów „na sztywno” (style=…), więc tu potrzebny jest !important. Logotypy trafiają nad nagłówek, a nie na prawo. */
+div#nd_liturgia > div[style] { float: none !important; margin: 0 0 6px 0 !important; text-align: center; }
+div#nd_liturgia img { max-width: 100%; height: auto; }
+/* Linki z widgetu są wyłączone (ramka nie ma uprawnienia do otwierania okien — ochrona przed nawigacją poza aplikację). */
+#nd_liturgia a, #czyt-tresc a { pointer-events: none; text-decoration: none; color: inherit; cursor: default; }

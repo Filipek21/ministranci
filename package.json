@@ -1,0 +1,8 @@
+{
+  "name": "e-ministranci",
+  "private": true,
+  "scripts": {
+    "wydajnosc": "node tools/analiza-wydajnosci.mjs --budzet",
+    "test": "node --test tests/magazyn.test.mjs tests/synchronizacja.test.mjs tests/kontakt.test.mjs tests/paczki.test.mjs tests/asystent.test.mjs tests/asystent2.test.mjs tests/plakietki-ksiadz.test.mjs tests/pomoc.test.mjs tests/pomoc-silnik.test.mjs tests/pomoc-ai.test.mjs tests/pomoc-auto.test.mjs tests/bezpieczenstwo-ladowanie.test.mjs tests/prywatnosc.test.mjs tests/audyt-luki.test.mjs tests/straznik-sieci.test.mjs tests/audyt-17.test.mjs tests/wydajnosc-18.test.mjs tests/czytania-2160.test.mjs"
+  }
+}
