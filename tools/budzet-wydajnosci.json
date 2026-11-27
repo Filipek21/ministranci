@@ -1,5 +1,0 @@
-{
-    "index.html": { "jsKrytycznyGz": 108000, "cssGz": 18000, "htmlGz": 1200, "skryptyBlokujace": 9 },
-    "app.html": { "jsKrytycznyGz": 220000, "cssGz": 18000, "htmlGz": 11000, "skryptyBlokujace": 28 },
-    "kiosk.html": { "jsKrytycznyGz": 168000, "cssGz": 18000, "htmlGz": 4200, "skryptyBlokujace": 19 }
-}
