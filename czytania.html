@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<!-- v2.16.01 — CZYTANIA: DZIŚ, JUTRO, POJUTRZE (widget Niedziela.pl; dzień wybiera okno czytań przez ?d=1 / ?d=2 → js/czytania-widget.js dopisuje ?data=… do adresu widgetu). Ta strona jest ładowana WYŁĄCZNIE w odizolowanej ramce (iframe sandbox="allow-scripts"
+     bez allow-same-origin) z js/czytania.js. Widget używa document.write i ładuje obrazki z obcych serwerów, więc NIE wolno go wstawiać
+     bezpośrednio do aplikacji: w ramce nie ma dostępu do PIN-ów, sesji, localStorage ani do żadnych danych aplikacji.
+     Własne CSP tej strony: skrypty tylko z tej domeny i z widget.niedziela.pl; brak jakichkolwiek połączeń (connect-src 'none'). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://widget.niedziela.pl; style-src 'self' 'unsafe-inline'; img-src https: data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+<!-- Widget sprawdza zgłoszoną domenę (patrz docs/RAPORT_V2.16.00.md): wysyłamy TYLKO adres główny strony (bez ścieżki i parametrów). -->
+<meta name="referrer" content="origin">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#1a1440">
+<title>Czytania</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/czytania.css?v=2.16.02">
+</head>
+<body>
+<main id="czyt-ramka">
+    <p id="czyt-status" role="status">Ładowanie czytań…</p>
+    <div id="czyt-tresc"><script src="js/czytania-widget.js?v=2.16.02"></script></div>
+</main>
+<script src="js/czytania-ramka.js?v=2.16.02"></script>
+</body>
+</html>
